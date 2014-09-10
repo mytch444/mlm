@@ -1,9 +1,9 @@
 mlm
 ===
 
-My lisp interperater.
+My lisp interpreter.
 
-A simple (ok, it's probably an overly complicated, not functional piece of shit) lisp interperater.
+A simple (ok, it's probably an overly complicated, not functional piece of shit) lisp interpreter.
 It's currently being developed.
 It will eventually use my own dialect of lisp that takes some influences from haskel.
 
