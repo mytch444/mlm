@@ -22,12 +22,12 @@ atom *dolispfunction(atom *handle, atom *atoms);
 
 atom *addfunction(atom *handle, atom *a) {
   atom *r;
-  if (!a) return int_to_atom(0);
+  if (!a) return data_to_atom(int_to_data(0));
   if (a->a) {
     atom *s = evaluate(a->a);
     if (s->next) {
       printf("Error, lists are not my speciality\n");
-      return int_to_atom(0);
+      return data_to_atom(int_to_data(0));
     }
     s->next = a->next;
     return addfunction(handle, s);
@@ -35,23 +35,23 @@ atom *addfunction(atom *handle, atom *a) {
     data *d = a->d;
     if (d->type == INT) {
       atom *n = addfunction(handle, a->next);
-      r = int_to_atom(d->i + n->d->i);
+      r = data_to_atom(int_to_data(d->i + n->d->i));
     } else if (d->type == FLOAT) {
       atom *n = addfunction(handle, a->next);
-      r = float_to_atom(d->f + n->d->f);
-    } else return int_to_atom(0);
+      r = data_to_atom(float_to_data(d->f + n->d->f));
+    } else return data_to_atom(int_to_data(0));
     return r;
-  } else return int_to_atom(0);
+  } else return data_to_atom(int_to_data(0));
 }
 
 atom *subfunction(atom *handle, atom *a) {
   atom *r, *b;
-  if (!a) return int_to_atom(0);
+  if (!a) return data_to_atom(int_to_data(0));
   if (a->a) {
     atom *s = evaluate(a->a);
     if (s->next) {
       printf("Error, lists are not my speciality\n");
-      return int_to_atom(0);
+      return data_to_atom(int_to_data(0));
     }
     s->next = a->next;
     return subfunction(handle, s);
@@ -62,26 +62,26 @@ atom *subfunction(atom *handle, atom *a) {
       for (b = a->next; b && b->d; b = b->next)
 	sum -= b->d->i;
 
-      r = int_to_atom(sum);
+      r = data_to_atom(int_to_data(sum));
     } else if (d->type == FLOAT) {
       float sum = d->f;
       for (b = a->next; b && b->d; b = b->next)
 	sum -= b->d->f;
 
-      r = float_to_atom(sum);
-    } else return int_to_atom(0);
+      r = data_to_atom(float_to_data(sum));
+    } else return data_to_atom(int_to_data(0));
     return r;
-  } else return int_to_atom(0);
+  } else return data_to_atom(int_to_data(0));
 }
 
 atom *mulfunction(atom *handle, atom *a) {
   atom *r;
-  if (!a) return int_to_atom(1);
+  if (!a) return data_to_atom(int_to_data(1));
   if (a->a) {
     atom *s = evaluate(a->a);
     if (s->next) {
       printf("Error, lists are not my speciality\n");
-      return int_to_atom(0);
+      return data_to_atom(int_to_data(0));
     }
     s->next = a->next;
     return mulfunction(handle, s);
@@ -89,23 +89,23 @@ atom *mulfunction(atom *handle, atom *a) {
     data *d = a->d;
     if (d->type == INT) {
       atom *n = mulfunction(handle, a->next);
-      r = int_to_atom(d->i * n->d->i);
+      r = data_to_atom(int_to_data(d->i * n->d->i));
     } else if (d->type == FLOAT) {
       atom *n = mulfunction(handle, a->next);
-      r = float_to_atom(d->f * n->d->f);
-    } else return int_to_atom(1);
+      r = data_to_atom(float_to_data(d->f * n->d->f));
+    } else return data_to_atom(int_to_data(1));
     return r;
-  } else return int_to_atom(1);
+  } else return data_to_atom(int_to_data(1));
 }
 
 atom *divfunction(atom *handle, atom *a) {
   atom *r, *b;
-  if (!a) return int_to_atom(1);
+  if (!a) return data_to_atom(int_to_data(1));
   if (a->a) {
     atom *s = evaluate(a->a);
     if (s->next) {
       printf("Error, lists are not my speciality\n");
-      return int_to_atom(0);
+      return data_to_atom(int_to_data(0));
     }
     s->next = a->next;
     return divfunction(handle, s);    
@@ -116,16 +116,16 @@ atom *divfunction(atom *handle, atom *a) {
       for (b = a->next; b && b->d; b = b->next)
 	sum /= b->d->i;
 
-      r = int_to_atom(sum);
+      r = data_to_atom(int_to_data(sum));
     } else if (d->type == FLOAT) {
       float sum = d->f;
       for (b = a->next; b && b->d; b = b->next)
 	sum /= b->d->f;
 
-      r = float_to_atom(sum);
-    } else return int_to_atom(1);
+      r = data_to_atom(float_to_data(sum));
+    } else return data_to_atom(int_to_data(1));
     return r;
-  } else return int_to_atom(1);
+  } else return data_to_atom(int_to_data(1));
 }
 
 atom *equalfunction(atom *handle, atom *atoms) {
@@ -266,17 +266,21 @@ atom *defunfunction(atom *handle, atom *atoms) {
   int argc;
   function *f;
   lispfunction *l;
+  char *name;
+  atom *args, *func, *a;
 
   if (!atoms || !atoms->d ||
-      !atoms->next || !atoms->next->a ||
-      !atoms->next->next || !atoms->next->next->a)
+      !atoms->next || 
+      !atoms->next->next)
     return NIL;
   
-  char *name = atoms->d->string;
-  atom *args = atoms->next->a;
-  atom *func = atoms->next->next->a;
-  atom *a;
-
+  name = atoms->d->string;
+  args = atoms->next->a;
+  if (atoms->next->next->a)
+    func = atoms->next->next->a;
+  else
+    func = atoms->next->next;
+  
   printf("name = '%s'\nargs = '%s'\nfunc = '%s'\n", name, atom_to_string(args), atom_to_string(func));
   
   for (argc = 0, a = args; a; a = a->next, argc++);
@@ -301,6 +305,7 @@ atom *defunfunction(atom *handle, atom *atoms) {
   l->argc = argc;
   l->function = func;
   l->next = NULL;
+
   
   return TRUE;
 }

@@ -11,9 +11,10 @@
 
 #define INT 1
 #define FLOAT 2
-#define FUNCTION 3
+#define CHAR 3
+#define FUNCTION 4
 
-#define TRUE int_to_atom(1)
+#define TRUE data_to_atom(int_to_data(1))
 #define NIL nil_atom()
 
 typedef struct function function;
@@ -61,11 +62,11 @@ char *string_cut(char *string, int start, int stop);
 int closing_bracket_pos(char *string, int open);
 
 data *string_to_data(char *string);
+data *char_to_data(char c);
 data *int_to_data(int i);
 data *float_to_data(double f);
 
-atom *float_to_atom(double d);
-atom *int_to_atom(int i);
+atom *data_to_atom(data *d);
 
 char *atom_to_string(atom *a);
 
@@ -74,6 +75,8 @@ atom *copy_atom(atom *a);
 
 int string_is_int(char *string);
 int string_is_float(char *string);
+int string_is_string(char *string);
+int string_is_char(char *string);
 
 atom *nil_atom();
 
@@ -130,12 +133,29 @@ int string_is_float(char *string) {
   return 1;
 }
 
+int string_is_char(char *string) {
+  int i;
+  if (string[0] == '\'' && string[2] == '\'')
+    return 1;
+  return 0;
+}
+
+int string_is_string(char *string) {
+  int i;
+  for (i = 0; string[i] && string[i + 1]; i++);
+  if (string[0] == '\"' && string[i] == '\"')
+    return 1;
+  return 0;
+}
+
 data *string_to_data(char *string) {
   if (string_is_int(string)) {
     return int_to_data(atoi(string));
   } else if (string_is_float(string)) {
     return float_to_data(atof(string));
     
+  } else if (string_is_char(string)) {
+    return char_to_data(string[1]);
   } else {
     data *d = malloc(sizeof(data));
     
@@ -144,6 +164,15 @@ data *string_to_data(char *string) {
     
     return d;
   }
+}
+
+data *char_to_data(char c) {
+  data *d = malloc(sizeof(data));
+
+  d->type = CHAR;
+  d->i = c;
+
+  return d;
 }
 
 data *int_to_data(int i) {
@@ -183,6 +212,8 @@ char *atom_to_string(atom *a) {
       sprintf(result, "%i", a->d->i);
     } else if (a->d->type == FLOAT) {
       sprintf(result, "%g", a->d->f);
+    } else if (a->d->type == CHAR) {
+      sprintf(result, "'%c'", a->d->i);
     } else {
       sprintf(result, "%s", a->d->string);
     }
@@ -202,17 +233,9 @@ char *atom_to_string(atom *a) {
   return result;
 }
 
-atom *int_to_atom(int i) {
+atom *data_to_atom(data *d) {
   atom *a = malloc(sizeof(atom));
-  a->d = int_to_data(i);
-  a->a = NULL;
-  a->next = NULL;
-  return a;
-}
-
-atom *float_to_atom(double d) {
-  atom *a = malloc(sizeof(atom));
-  a->d = float_to_data(d);
+  a->d = d;
   a->a = NULL;
   a->next = NULL;
   return a;
@@ -281,8 +304,8 @@ atom *evaluate(atom *atoms) {
 }
 
 atom *parse(char *string) {
-  int num, i, start, end;
-  atom *handle, *atoms;
+  int num, i, start, end, j;
+  atom *handle, *atoms, *t;
   
   handle = malloc(sizeof(atom));
   handle->next = NULL;
@@ -301,12 +324,28 @@ atom *parse(char *string) {
     if (ischar(string[i])) {
       start = i;
       for (; string[i] && ischar(string[i]); i++);
+
+      char *sub = string_cut(string, start, i);
       
       atoms->next = malloc(sizeof(atom));
       atoms = atoms->next;
-      atoms->d = string_to_data(string_cut(string, start, i));
-      atoms->a = NULL;
+      if (string_is_string(sub)) {
+	char *chars = string_cut(string, start + 1, i - 1);
+	atoms->d = NULL;
+	atoms->a = malloc(sizeof(atom));
+	t = atoms->a;
+	for (j = 0; chars[j]; j++) {
+	  t->d = char_to_data(chars[j]);
+	  t->a = NULL;
+	  t->next = malloc(sizeof(atom));
+	  t = t->next;
+	}
+      } else {
+	atoms->d = string_to_data(sub);
+	atoms->a = NULL;
+      }
       atoms->next = NULL;
+	     
       num++;
     } else if (string[i] == '(') {
       start = i + 1;

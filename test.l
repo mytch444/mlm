@@ -1,4 +1,3 @@
-
 (defun else ()
   1)
 
@@ -7,12 +6,15 @@
 
 (defun pow (a b)
   (cond ((= b 0) 1)
-	(1 (* a
+	(else (* a
 	      (pow a (- b 1))))))
 
 (defun map (f l)
   (cond ((nil? l) ())
-	(1 (cons
+	(else (cons
 	    (f (car l))
 	    (map f (cdr l))))))
 
+(defun n (i l)
+  (cond ((= 0 i) (car l))
+	(else (n (- i 1) (cdr l)))))
