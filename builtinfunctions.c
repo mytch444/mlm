@@ -191,44 +191,17 @@ atom *equalfunction(atom *handle, atom *atoms) {
 }
 
 atom *isint(atom *handle, atom *atoms) {
-  atom *a;
-  for (a = atoms; a; a = a->next) {
-    if (a->d) {
-      if (a->d->type != INT) return NIL;
-    } else if (a->a) {
-      atom *s = evaluate(a->a);
-      if (s->next) {
-	a->d = NULL;
-	a->a = s;
-      } else {
-	a->d = s->d;
-	a->a = s->a;
-      }
-
-      return isint(handle, a);
-    } else return NIL;
-  }
-  return TRUE;
+  if (atoms && atoms->d && atoms->d->type == INT)
+    return TRUE;
+  else
+    return NIL;
 }
 
 atom *isfloat(atom *handle, atom *atoms) {
-  atom *a;
-  for (a = atoms; a; a = a->next) {
-    if (a->d) {
-      if (a->d->type != FLOAT) return NIL;
-    } else if (a->a) {
-      atom *s = evaluate(a->a);
-      if (s->next) {
-	a->d = NULL;
-	a->a = s;
-      } else {
-	a->d = s->d;
-	a->a = s->a;
-      }
-      return isint(handle, a);
-    } else return NIL;
-  }
-  return TRUE;
+  if (atoms && atoms->d && atoms->d->type == FLOAT)
+    return TRUE;
+  else
+    return NIL;
 }
 
 atom *islist(atom *handle, atom *a) {
@@ -277,11 +250,9 @@ atom *condfunction(atom *handle, atom *atoms) {
     cond->next = NULL;
     func->next = NULL;
 
-    printf("if '%s' then '%s'\n", atom_to_string(cond), atom_to_string(func));
     conde = evaluate(cond);
     // It isn't this one.
     if (!conde->d && !conde->a) {
-      printf("not this one\n");
       continue;
     }
 
@@ -292,28 +263,44 @@ atom *condfunction(atom *handle, atom *atoms) {
 }
 
 atom *defunfunction(atom *handle, atom *atoms) {
-  int i, len;
+  int argc;
+  function *f;
+  lispfunction *l;
+
+  if (!atoms || !atoms->d ||
+      !atoms->next || !atoms->next->a ||
+      !atoms->next->next || !atoms->next->next->a)
+    return NIL;
+  
   char *name = atoms->d->string;
   atom *args = atoms->next->a;
   atom *func = atoms->next->next->a;
+  atom *a;
+
+  printf("name = '%s'\nargs = '%s'\nfunc = '%s'\n", name, atom_to_string(args), atom_to_string(func));
   
-  for (i = 0; strcmp(functions[i].name, ""); i++);
-  len = i + 2;
-  functions = realloc(functions, sizeof(function) * len);
-  functions[i].name = name;
-  functions[i].function = dolispfunction;
-  functions[i + 1].name = "";
-  functions[i + 1].function = NULL;
-  
-  for (i = 0; strcmp(lispfunctions[i].name, ""); i++);
-  len = i + 2;
-  lispfunctions = realloc(lispfunctions, sizeof(lispfunction) * len);
-  lispfunctions[i].name = name;
-  lispfunctions[i].args = args;
-  lispfunctions[i].function = func;
-  lispfunctions[i + 1].name = "";
-  lispfunctions[i + 1].args = NULL;
-  lispfunctions[i + 1].function = NULL;
+  for (argc = 0, a = args; a; a = a->next, argc++);
+
+  for (f = functions; f && f->next; f = f->next);    
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = name;
+  f->function = dolispfunction;
+  f->next = NULL;
+
+  for (l = lispfunctions; l && l->next; l = l->next);
+  if (!l) {
+    lispfunctions = malloc(sizeof(lispfunction));
+    l = lispfunctions;
+  } else {
+    l->next = malloc(sizeof(lispfunction));
+    l = l->next;
+  }
+  l->name = name;
+  l->args = args;
+  l->argc = argc;
+  l->function = func;
+  l->next = NULL;
   
   return TRUE;
 }
@@ -325,19 +312,16 @@ atom *swap_in_args(atom *func, atom *args, atom *atoms) {
     if (a->d && a->d->type == FUNCTION) {
       tmp = a->next;
       a->next = NULL;
-      printf("possibly replacing '%s'\n", atom_to_string(a));
       a->next = tmp;
       for (i = 0, b = args; b; b = b->next, i++) {
 	if (b->d && strcmp(a->d->string, b->d->string) == 0) {
 	  tmp = b->next;
 	  b->next = NULL;
-	  printf("replacing with atom at '%s'\n", atom_to_string(b));
 	  b->next = tmp;
 	  for (j = 0, c = atoms; c; c = c->next, j++) {
 	    if (i == j) {
 	      tmp = c->next;
 	      c->next = NULL;
-	      printf("which is '%s'\n", atom_to_string(c));
 	      c->next = tmp;
 
 	      a->d = c->d;
@@ -358,19 +342,20 @@ atom *swap_in_args(atom *func, atom *args, atom *atoms) {
 }
 
 atom *dolispfunction(atom *handle, atom *atoms) {
-  int f;
+  lispfunction *l;
+  int f, i;
   atom *args, *func, *a, *s;
 
-  for (f = 0; strcmp(lispfunctions[f].name, ""); f++) {
-    if (strcmp(lispfunctions[f].name, handle->d->string) == 0) {
+  for (l = lispfunctions; l; l = l->next) {
+    if (strcmp(l->name, handle->d->string) == 0) {
       break;
     }
   }
 
-  if (!lispfunctions[f].function)
+  if (!l)
     return NIL;
 
-  for (a = atoms; a; a = a->next) {
+  for (i = 0, a = atoms; a; a = a->next, i++) {
     if (a->a) {
       s = evaluate(a->a);
       if (s->next) {
@@ -382,15 +367,13 @@ atom *dolispfunction(atom *handle, atom *atoms) {
       }	
     }
   }
+
+  if (i < l->argc) {
+    return handle;
+  }
   
-  args = lispfunctions[f].args;
-  printf("putting in '%s'\nkey '%s'\nfunc '%s'\n",
-	 atom_to_string(atoms),
-	 atom_to_string(args),
-	 atom_to_string(lispfunctions[f].function));
-  
-  func = swap_in_args(copy_atom(lispfunctions[f].function), args, atoms);
-  printf("got '%s'\n", atom_to_string(func));
+  args = l->args;
+  func = swap_in_args(copy_atom(l->function), args, atoms);
   
   return evaluate(func);
 }

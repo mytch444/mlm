@@ -24,18 +24,15 @@ typedef struct data data;
 struct function {
   char *name;
   atom *(*function)(atom *handle, atom *atoms);
+  function *next;
 };
 
 struct lispfunction {
   char *name;
   atom *args;
+  int argc;
   atom *function;
-};
-
-struct atom {
-  data *d;
-  atom *a;
-  atom *next;
+  lispfunction *next;
 };
 
 struct data {
@@ -45,7 +42,17 @@ struct data {
   char *string;
 };
 
+struct atom {
+  data *d;
+  atom *a;
+  atom *next;
+};
+
 void read_files(char **argv, int argc);
+void repl(FILE *in, int print);
+void init_default_functions();
+  
+function *get_function(atom *a);
 
 atom *parse(char *string);
 atom *evaluate(atom *atoms);
@@ -230,14 +237,13 @@ atom *copy_atom(atom *a) {
   return b;
 }
 
-int function_location(atom *a) {
-  int i;
-  for (i = 0; strcmp(functions[i].name, ""); i++) {
-    if (strcmp(functions[i].name, a->d->string) == 0) {
-      return i;
-    }
-  }
-  return -1;
+function *get_function(atom *a) {
+  function *f;
+  if (!a || !a->d) return NULL;
+  for (f = functions; f; f = f->next)
+    if (strcmp(f->name, a->d->string) == 0)
+      return f;
+  return NULL;
 }
 
 atom *evaluate(atom *atoms) {
@@ -246,8 +252,6 @@ atom *evaluate(atom *atoms) {
 
   if (!atoms) return NIL;
 
-  printf("evaluating '%s'\n", atom_to_string(atoms));
-  
   if (atoms->a) {
     atom *s = evaluate(atoms->a);
     if (!s) return NIL;
@@ -262,11 +266,11 @@ atom *evaluate(atom *atoms) {
   
   if (atoms->d) {
     if (atoms->d->type == FUNCTION) {
-      i = function_location(atoms);
-      if (i == -1)
-	return atoms;
+      function *f = get_function(atoms);
+      if (f)
+	return f->function(atoms, atoms->next);
       else
-	return functions[i].function(atoms, atoms->next);
+	return atoms;
     } else {
       return atoms;
     }
@@ -336,51 +340,103 @@ atom *parse(char *string) {
   return handle->next;
 }
 
+/*
+ * I fucking hate this shit.
+ * Any other way would be better.
+ */
 void init_default_functions() {
-  functions = malloc(sizeof(struct function) * 15);
-  functions[0].name = "+";
-  functions[0].function = addfunction;
-  functions[1].name = "-";
-  functions[1].function = subfunction;
-  functions[2].name = "*";
-  functions[2].function = mulfunction;
-  functions[3].name = "/";
-  functions[3].function = divfunction;
-  functions[4].name = "=";
-  functions[4].function = equalfunction;
-  functions[5].name = "int?";
-  functions[5].function = isint;
-  functions[6].name = "float?";
-  functions[6].function = isfloat;
-  functions[7].name = "list?";
-  functions[7].function = islist;
-  functions[8].name = "nil?";
-  functions[8].function = isnil;
-  functions[9].name = "defun";  
-  functions[9].function = defunfunction;
-  functions[10].name = "cons";
-  functions[10].function = consfunction;
-  functions[11].name = "car";
-  functions[11].function = carfunction;
-  functions[12].name = "cdr";
-  functions[12].function = cdrfunction;
-  functions[13].name = "cond";
-  functions[13].function = condfunction;
-  functions[14].name = "";
-  functions[14].function = NULL;
+  function *f;
+
+  functions = malloc(sizeof(function));
+  functions->name = "+";
+  functions->function = addfunction;
+  functions->next = NULL;
+  f = functions;
   
-  lispfunctions = malloc(sizeof(struct lispfunction) * 1);
-  lispfunctions[0].name = "";
-  lispfunctions[0].args = NULL;
-  lispfunctions[0].function = NULL;
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "-";
+  f->function = subfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "*";
+  f->function = mulfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "/";
+  f->function = divfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "=";
+  f->function = equalfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "int?";
+  f->function = isint;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "float?";
+  f->function = isfloat;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "list?";
+  f->function = islist;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "nil?";
+  f->function = isnil;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "cons";
+  f->function = consfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "car";
+  f->function = carfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "cdr";
+  f->function = cdrfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "cond";
+  f->function = condfunction;
+  f->next = NULL;
+
+  f->next = malloc(sizeof(function));
+  f = f->next;
+  f->name = "defun";
+  f->function = defunfunction;
+  f->next = NULL;
+
+  lispfunctions = NULL;
 }
 
 void read_files(char **argv, int argc) {
   FILE *f;
   int i;
-  char line[LINELENGTH];
-  atom *result;
-  atom *parsed;
   
   for (i = 1; i < argc; i++) {
     printf("Evaluating '%s'\n", argv[i]);
@@ -389,35 +445,53 @@ void read_files(char **argv, int argc) {
       continue;
     }
     
-    while (fgets(line, sizeof line, f)) {
-      parsed = parse(line);
-      result = evaluate(parsed);
-    }
-
+    repl(f, 0);
+    
     fclose(f);
   }
 }
 
-int main(int argc, char **argv) {
-  char line[LINELENGTH];
+void repl(FILE *in, int print) {
+  char line[500];
+  char string[5000];
   atom *result;
   atom *parsed;
+  int c, d, open, close;
   
-  init_default_functions();
-  
-  if (argc > 1) read_files(argv, argc);
-
   while (1) {
-    printf("-> ");
-    if (!fgets(line, LINELENGTH, stdin)) {
-      printf("Error.\n");
-      break;
-    }
+    if (print) printf("-> ");
+    
+    open = close = 0;
+    string[0] = '\0';
+    line[0] = '\0';
+    
+    do {
+      if (!fgets(line, sizeof(char) * 500, in))
+	return;
+      for (c = 0; line[c] && line[c] != '\n'; c++);
+      if (line[c] == '\n') line[c] = ' ';
 
-    parsed = parse(line);
+      for (c = 0; string[c]; c++);
+      for (d = 0; line[d]; d++)
+	string[c + d] = line[d];
+      string[c + d] = '\0';
+      
+      for (c = 0; line[c]; c++)
+	if (line[c] == '(') open++;
+	else if (line[c] == ')') close++;
+      
+    } while (open != close);
+
+    parsed = parse(string);
     result = evaluate(parsed);
-    printf("%s\n", atom_to_string(result));
+    if (print) printf("%s\n", atom_to_string(result));
   }
-  
+}
+
+int main(int argc, char **argv) {
+  init_default_functions();
+
+  if (argc > 1) read_files(argv, argc);
+  repl(stdin, 1);
   return 0;
 }
