@@ -5,7 +5,7 @@
 #define LINELENGTH 10000
 
 #define isspace(X) (X == ' ' || X == '\n' || X == '\t')
-#define isspecial(X) (X == '(' || X == ')')
+#define isspecial(X) (X == '(' || X == ')' || X == '\"')
 #define ischar(X) (!isspace(X) && !isspecial(X))
 #define iscomment(X) (X == ';')
 
@@ -325,27 +325,35 @@ atom *parse(char *string) {
       start = i;
       for (; string[i] && ischar(string[i]); i++);
 
-      char *sub = string_cut(string, start, i);
-      
       atoms->next = malloc(sizeof(atom));
       atoms = atoms->next;
-      if (string_is_string(sub)) {
-	char *chars = string_cut(string, start + 1, i - 1);
-	atoms->d = NULL;
-	atoms->a = malloc(sizeof(atom));
-	t = atoms->a;
-	for (j = 0; chars[j]; j++) {
-	  t->d = char_to_data(chars[j]);
-	  t->a = NULL;
-	  t->next = malloc(sizeof(atom));
-	  t = t->next;
-	}
-      } else {
-	atoms->d = string_to_data(sub);
-	atoms->a = NULL;
-      }
+      atoms->d = string_to_data(string_cut(string, start, i));
+      atoms->a = NULL;
       atoms->next = NULL;
 	     
+      num++;
+    } else if (string[i] == '\"') {
+      start = i + 1;
+      for (i++; string[i] && string[i] != '\"'; i++);
+
+      char *chars = string_cut(string, start, i);
+      atoms->next = malloc(sizeof(atom));
+      atoms = atoms->next;
+      atoms->d = NULL;
+      atoms->a = malloc(sizeof(atom));
+      atoms->next = NULL;
+
+      t = atoms->a;
+      for (j = 0; chars[j]; j++) {
+	t->d = char_to_data(chars[j]);
+	t->a = NULL;
+	t->next = malloc(sizeof(atom));
+	t = t->next;
+	t->d = NULL;
+	t->a = NULL;
+	t->next = NULL;
+      }
+
       num++;
     } else if (string[i] == '(') {
       start = i + 1;
