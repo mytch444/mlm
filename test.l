@@ -1,6 +1,12 @@
 (defun else ()
   1)
 
+(defun 1+ (a)
+  (+ a 1))
+
+(defun 1- (a)
+  (- a 1))
+
 (defun twice (a)
   (* 2 a))
 
@@ -18,3 +24,7 @@
 (defun n (i l)
   (cond ((= 0 i) (car l))
 	(else (n (- i 1) (cdr l)))))
+
+(defun concat (c l)
+  (cond ((nil? l) c)
+	(else (cons (car l) (concat c (cdr l))))))
