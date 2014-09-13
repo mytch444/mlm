@@ -1,12 +1,15 @@
 atom *addfunction(atom *a) {
   atom *r;
   if (!a || !a->next) return NIL;
+  printf("adding '%s'\n", atom_to_string(a));
   if (a->a) {
     printf("I don't to lists\n");
     return NIL;
-  } else if (a->d && a->next->d && a->d->type == a->next->d->type) {
-    if (a->d->type == INT || a->d->type == CHAR) {
+  } else if (a->d && a->next->d) {
+    if ((a->d->type == INT || a->d->type == CHAR) && a->next->d->type != FLOAT) {
       r = data_to_atom(int_to_data(a->d->i + a->next->d->i));
+      if (a->d->type == CHAR || a->next->d->type == CHAR)
+	r->d->type = CHAR;
     } else if (a->d->type == FLOAT) {
       r = data_to_atom(float_to_data(a->d->f + a->next->d->f));
     } else r = data_to_atom(int_to_data(0));
@@ -20,9 +23,11 @@ atom *subfunction(atom *a) {
   if (a->a) {
     printf("I don't to lists\n");
     return NIL;
-  } else if (a->d && a->next->d && a->d->type == a->next->d->type) {
-    if (a->d->type == INT || a->d->type == CHAR) {
+  } else if (a->d && a->next->d) {
+    if ((a->d->type == INT || a->d->type == CHAR) && a->next->d->type != FLOAT) {
       r = data_to_atom(int_to_data(a->d->i - a->next->d->i));
+      if (a->d->type == CHAR || a->next->d->type == CHAR)
+	r->d->type = CHAR;
     } else if (a->d->type == FLOAT) {
       r = data_to_atom(float_to_data(a->d->f - a->next->d->f));
     } else r = data_to_atom(int_to_data(0));
@@ -36,9 +41,11 @@ atom *mulfunction(atom *a) {
   if (a->a) {
     printf("I don't to lists\n");
     return NIL;
-  } else if (a->d && a->next->d && a->d->type == a->next->d->type) {
-    if (a->d->type == INT || a->d->type == CHAR) {
+  } else if (a->d && a->next->d) {
+    if ((a->d->type == INT || a->d->type == CHAR) && a->next->d->type != FLOAT) {
       r = data_to_atom(int_to_data(a->d->i * a->next->d->i));
+      if (a->d->type == CHAR || a->next->d->type == CHAR)
+	r->d->type = CHAR;
     } else if (a->d->type == FLOAT) {
       r = data_to_atom(float_to_data(a->d->f * a->next->d->f));
     } else r = data_to_atom(int_to_data(0));
@@ -52,9 +59,11 @@ atom *divfunction(atom *a) {
   if (a->a) {
     printf("I don't to lists\n");
     return NIL;
-  } else if (a->d && a->next->d && a->d->type == a->next->d->type) {
-    if (a->d->type == INT || a->d->type == CHAR) {
+  } else if (a->d && a->next->d) {
+    if ((a->d->type == INT || a->d->type == CHAR) && a->next->d->type != FLOAT) {
       r = data_to_atom(int_to_data(a->d->i / a->next->d->i));
+      if (a->d->type == CHAR || a->next->d->type == CHAR)
+	r->d->type = CHAR;
     } else if (a->d->type == FLOAT) {
       r = data_to_atom(float_to_data(a->d->f / a->next->d->f));
     } else r = data_to_atom(int_to_data(0));
@@ -73,7 +82,8 @@ atom *equalfunction(atom *atoms) {
       if (d->type == FLOAT && n->type == FLOAT) {
 	if (d->f != n->f)
 	  return NIL;
-      } else if (d->type == INT && n->type == INT) {
+      } else if ((d->type == INT && n->type == INT) ||
+		 (d->type == CHAR && n->type == CHAR)) {
 	if (d->i != n->i)
 	  return NIL;
       } else
@@ -132,14 +142,10 @@ atom *islist(atom *a) {
 }
 
 atom *isnil(atom *a) {
-  printf("is nil? '%s'\n", atom_to_string(a));
-  if (!a || (a && !a->d && !a->a && !a->f)) {
-    printf("yes\n");
+  if (!a || (a && !a->d && !a->a && !a->f))
     return TRUE;
-  } else {
-    printf("no\n");
+  else
     return NIL;
-  }
 }
 
 atom *listfunction(atom *atoms) {
@@ -168,11 +174,10 @@ atom *carfunction(atom *atoms) {
 
 atom *cdrfunction(atom *atoms) {
   if (!atoms || !atoms->a) return NIL;
-  return atoms->a->next;
+  return copy_atom(atoms->a->next);
 }
 
 atom *condfunction(atom *atoms) {
-  printf("cond '%s'\n", atom_to_string(atoms));
   atom *sub, *cond, *func;
   atom *conde;
   for (sub = atoms; sub; sub = sub->next) {
@@ -181,19 +186,13 @@ atom *condfunction(atom *atoms) {
     cond->next = NULL;
     func->next = NULL;
 
-    printf("if '%s' then '%s'\n", atom_to_string(cond), atom_to_string(func));
-    
     conde = evaluate(cond);
     // It isn't this one.
     if (!conde || (!conde->d && !conde->a && !conde->f)) {
-      printf("nah\n");
       continue;
     }
 
-    printf("yeah\n");
-
     atom *funce = evaluate(func);
-    printf("so '%s'\n", atom_to_string(funce));
     return funce;
   }
 
@@ -211,37 +210,27 @@ void update_function(atom *func, char *name, realfunction *f) {
   }
 }
 
-atom *defunfunction(atom *atoms) {
+atom *lambdafunction(atom *atoms) {
   int argc;
   realfunction *f;
-  char *name;
-  atom *args, *func, *a;
+  atom *args, *func, *a, *r;
 
-  if (!atoms || !atoms->f ||
-      !atoms->next || 
-      !atoms->next->next)
+  if (!atoms || !atoms->next) {
     return NIL;
+  }
   
-  name = atoms->f->name;
-  args = atoms->next->a;
+  args = copy_atom(atoms->a);
   for (argc = 0, a = args; a; a = a->next, argc++);
-  if (atoms->next->next->a)
-    func = atoms->next->next->a;
-  else {
-    func = atoms->next->next;
-    func->next = NULL;
-  }
+  func = copy_atom(atoms->next);
+  func->next = NULL;
 
-  printf("defining %s\nargs '%s'\nargc %i\nfunc '%s'\n", name, atom_to_string(args), argc, atom_to_string(func));
+  r = malloc(sizeof(atom));
+  r->next = NULL;
+  r->a = NULL;
+  r->d = NULL;
 
-  for (f = functions; f && f->next && strcmp(f->next->name, name); f = f->next);
-  if (!f->next) {
-    f->next = malloc(sizeof(realfunction));
-    f->next->next = NULL;
-  }
-  
-  f = f->next;
-  f->name = name;
+  f = malloc(sizeof(realfunction));
+  f->name = "(\\";
   f->args = args;
   f->argc = argc;
   f->function = func;
@@ -249,14 +238,49 @@ atom *defunfunction(atom *atoms) {
   f->accept_dirty = 0;
   f->flat = 0;
 
-  update_function(func, name, f);
+  r->f = malloc(sizeof(function));
+  r->f->name = "(\\";
+  r->f->atoms = NULL;
+  r->f->function = f;
+
+  return r;
+}
+
+atom *definefunction(atom *atoms) {
+  realfunction *f, *nextsave, *func;
+  char *name;
+  atom *args, *a;
+
+  if (!atoms->f)
+    return NIL;
+  
+  if (!atoms->next->f) {
+    atom *t = NIL;
+    t->next = atoms->next;
+    atom *tf = lambdafunction(t);
+    if (tf && tf->f)
+      func = tf->f->function;
+    else
+      return NIL;
+  } else 
+    func = atoms->next->f->function;
+  
+  name = atoms->f->name;
+
+  for (f = functions; f && f->next && strcmp(f->next->name, name); f = f->next);
+  if (f->next)
+    nextsave = f->next;
+
+  f->next = func;
+  func->next = nextsave;
+  func->name = name;
+
+  update_function(func->function, name, f->next);
 
   return TRUE;
 }
 
 atom *swap_in_args(atom *func, atom *args, atom *atoms) {
-  //  printf("swapping shit '%s'\n", atom_to_string(func));
-  //  printf("args '%s' atoms '%s'\n", atom_to_string(args), atom_to_string(atoms));
   atom *a, *b, *c, *tmp;
   int i, j;
   for (a = func; a; a = a->next) {
@@ -293,14 +317,13 @@ atom *do_lisp_function(atom *fa, atom *atoms) {
 
   f = fa->f->function;
   if (!f) {
-    printf("umm what the fuck is going on\n", fa->f->name);
     return fa;
   }
-  
+
   func = swap_in_args(copy_atom(f->function), f->args, atoms);
-  printf("parsed  '%s'\n", atom_to_string(func));
 
   atom *funce = evaluate(func);
-  printf("evaled: '%s'\n", atom_to_string(funce));
   return funce;
 }
+
+

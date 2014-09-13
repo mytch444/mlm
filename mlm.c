@@ -12,12 +12,9 @@
 #define INT 1
 #define FLOAT 2
 #define CHAR 3
-#define FUNCTION 4
 
 #define TRUE data_to_atom(int_to_data(1))
 #define NIL nil_atom()
-
-#define INFINITE_ARGS -1
 
 typedef struct function function;
 typedef struct realfunction realfunction;
@@ -85,6 +82,7 @@ char *atom_to_string(atom *a);
 
 atom *do_sub(atom *a);
 atom *flatten(atom *o);
+int isclean(atom *a);
 
 data *copy_data(data *a);
 function *copy_function(function *f);
@@ -101,24 +99,25 @@ realfunction *functions;
 
 #include "builtinfunctions.c"
 
-#define BUILT_IN_FUNCTIONS_N 15
+#define BUILT_IN_FUNCTIONS_N 16
 
 built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
   {"+", addfunction, 0, 1, 3},
   {"-", subfunction, 0, 1, 3},
   {"*", mulfunction, 0, 1, 3},
   {"/", divfunction, 0, 1, 3},
-  {"=", equalfunction, 0, 1, INFINITE_ARGS},
+  {"=", equalfunction, 0, 1, -3},
   {"int?", isint, 0, 1, 2},
   {"float?", isfloat, 0, 1, 2},
   {"list?", islist, 0, 1, 2},
   {"nil?", isnil, 0, 1, 2},
-  {"list", listfunction, 0, 1, INFINITE_ARGS},
+  {"list", listfunction, 0, 1, -1},
   {"cons", consfunction, 0, 1, 3},
   {"car", carfunction, 0, 1, 2},
   {"cdr", cdrfunction, 0, 1, 2},
-  {"cond", condfunction, 0, 0, INFINITE_ARGS},
-  {"defun", defunfunction, 1, 0, 4},
+  {"cond", condfunction, 0, 0, -1},
+  {"define", definefunction, 1, 1, 3},
+  {"\\", lambdafunction, 1, 0, 3},
 };
 
 int closing_bracket_pos(char *string, int open) {
@@ -265,12 +264,12 @@ atom *flatten(atom *o) {
   return o;
 }
 
-int clean(atom *a) {
+int isclean(atom *a) {
   for (; a; a = a->next)
     if (a->f && !a->f->function)
       return 0;
     else if (a->a)
-      if (!clean(a->a))
+      if (!isclean(a->a))
 	return 0;
   return 1;
 }
@@ -373,17 +372,14 @@ atom *evaluate(atom *atoms) {
   int argc, i;
   atom *a, *r, *args, *rest;
 
-  printf("evaluating '%s'\n", atom_to_string(atoms));
-  
   if (!atoms) return NIL;
   
   if (atoms->a)
     atoms = do_sub(atoms);
 
   if (atoms && atoms->f) {
-    if (!atoms->f->function) {
+    if (!atoms->f->function)
       return atoms;
-    }
 
     args = atoms->f->atoms;
     if (args)
@@ -396,7 +392,7 @@ atom *evaluate(atom *atoms) {
     argc = atoms->f->function->argc;
     for (i = 0, a = args; a; a = a->next, i++);
     
-    if (argc != INFINITE_ARGS && i > argc) {
+    if (argc > 0 && i > argc) {
       atom *prev = NULL;
       for (i = 0, a = args; a; prev = a, a = a->next, i++) {
 	if (i >= argc) {
@@ -407,7 +403,7 @@ atom *evaluate(atom *atoms) {
 	}
       }
 
-    } else if (i < argc) {
+    } else if (i < argc || (argc < 0 && i < -argc)) {
       atoms->f->atoms = args;
       atoms->next = NULL;
 
@@ -415,7 +411,7 @@ atom *evaluate(atom *atoms) {
     }
     
     if (atoms->f->function->b_function) {
-      if (atoms->f->function->accept_dirty || clean(args)) {
+      if (atoms->f->function->accept_dirty || isclean(args)) {
 	if (atoms->f->function->flat) {
 	  r = atoms->f->function->b_function(flatten(args));
 	} else {
@@ -452,24 +448,26 @@ atom *parse(char *string) {
       break;
     
     if (iscomment(string[i]))
-      break;
+      for (; string[i] && string[i] != '\n'; i++);
     
     if (string[i] == '\"') {
       start = i + 1;
       for (i++; string[i] && string[i] != '\"'; i++);
+      i++;
       
-      char *chars = string_cut(string, start, i);
+      char *chars = string_cut(string, start, i - 1);
       atoms->next = malloc(sizeof(atom));
       atoms = atoms->next;
       atoms->d = NULL;
       atoms->a = malloc(sizeof(atom));
       atoms->f = NULL;
       atoms->next = NULL;
-      
+
       t = atoms->a;
       for (j = 0; chars[j]; j++) {
 	t->d = char_to_data(chars[j]);
 	t->a = NULL;
+	t->f = NULL;
 	t->next = malloc(sizeof(atom));
 	t = t->next;
 	t->d = NULL;
@@ -477,7 +475,7 @@ atom *parse(char *string) {
 	t->a = NULL;
 	t->next = NULL;
       }
-      
+
       num++;
     } else if (ischar(string[i])) {
       start = i;

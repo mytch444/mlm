@@ -8,3 +8,98 @@ It's currently being developed.
 It will eventually use my own dialect of lisp that takes some influences from haskel.
 
 No idea what I'll use it for.
+
+Here's a bad description of how to do shit.
+
+Language
+========
+
+Everything is an atom.
+An atom is either a function, data or a list. I cannot be more than one of these. It is structured like this. The is also a nil atom, this is any atom that doesn't have data, a list or a function (can have next).
+
+atom - next -> another atom (next in the list)
+     - data
+     - list
+     - function
+
+Data has a type (int, char or float (actually a double) at the moment) and it's value, either an int or double.
+
+Lists are just atoms that are joined together by the atoms next thingime.
+
+Functions have a name. A list of atoms that will be prepended to the arguments, this is so you can use functions that are not complete such as giving map (+ 2) to add two to every atom in the list. And a pointer the a real function. Realfunctions are just how I am storing functions at the moment.
+
+Functions
+=========
+Currently the bult in functions are
+
+Name, number of arguments plus the nil at the end, explanation.
+      -- These should be self explanatory.
+      "+", 3, adds
+      "-", 3, subtracts from the first argument
+      "*", 3, multiplies
+      "/", 3, divides
+      "=", 3+, check for equality for all but end nil.
+      "int?", 2, checks if atom is int.
+      "float?", 2, checks if atom is float.
+      "list?", 2, checks if atom is list.
+      "nil?", 2, checks if atom is nil.
+      "list", 1+, creates a list from arguments.
+      "cons", 3, makes second argument the next of first.
+      "car", 2, returns first atom in list.
+      "cdr", 2, returns next from list.
+
+      -- These will be explained. 
+      "cond", 1+, explained later.
+      "define", 4, defines atom to symbol.
+      "\", 3, lambda, creates a function.
+
+Cond
+====
+Use:
+	(cond ((= b 0) 1)
+	      ((else) 2))
+
+Cond goes through each of its arguments. each argument should be a list of two arguments. The first can be anything, if it is not nil then cond evaluates and returns the second. So in the above example if b was 0 it would return 1, else (a function that returns 1 defined in test.l) it returns 2.
+
+Makes sense? Probably not, that isn't your fault. I'm bad at explaining things.
+
+Define
+======
+Use:
+	(define hi "Hello world")
+
+Define associates a name with the next atom in its args (a list of chars in this case). Can be used with lambda to give names to functions and then use them latter.
+
+Lambda
+======
+Use:
+	(\ (a) (* a a))
+
+Lambda takes two arguments, the first is a list of functions that shouldn't be associated with anything (make up a new fucking name, I'll get a better description latter) and the second which is an expression that uses the arguments to return a value. So the above returns a function that when given a single argument returns that argument squared.
+
+Syntax
+======
+
+An example:
+
+(define map
+  (\ (f l)
+   (cond ((nil? l) ())
+	 ((else) (cons
+		(f (car l))
+		(map f (cdr l)))))))
+
+(map (+ 1) "hello")
+
+"hello" is syntactic sugar for ('h' 'e' 'l' 'l' 'o' ()).
+Other than that it's pretty much lisp. Or scheme, probably similar to scheme.
+
+Interpretter
+============
+The interpreter is a c program that takes input, evaluates and prints the result.
+
+You can give it files to evaluate by just giving them to it as arguments.
+
+It can read multi line expressions and will only execute on enter if there are an equal number of open and close brackets and not as part of a quote.
+
+There may at some point be a compiler. I recon that would be pretty cool.
