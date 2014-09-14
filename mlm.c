@@ -17,7 +17,7 @@
 #define NIL nil_atom()
 
 typedef struct function function;
-typedef struct realfunction realfunction;
+typedef struct symbol symbol;
 typedef struct built_in_function built_in_function;
 typedef struct atom atom;
 typedef struct data data;
@@ -29,20 +29,19 @@ struct built_in_function {
   int argc;
 };
 
-struct realfunction {
-  char *name;
+struct function {
   atom *args;
   int argc;
+  atom *atoms;
   atom *function;
   atom *(*b_function)(atom *atoms);
   int accept_dirty, flat;
-  realfunction *next;
 };
 
-struct function {
+struct symbol {
   char *name;
   atom *atoms;
-  realfunction *function;
+  symbol *next;
 };
 
 struct data {
@@ -54,16 +53,17 @@ struct data {
 struct atom {
   atom *next;
   data *d;
-  atom *a;
+  atom *s;
   function *f;
+  symbol *sym;
 };
 
 void read_files(char **argv, int argc);
 void repl(FILE *in, int print);
 void init_default_functions();
 
-realfunction *find_function(char *name);
-function *real_function_to_function(realfunction *f);
+atom *swap_symbols(atom *atoms);
+symbol *find_symbol(char *name);
 
 atom *parse(char *string);
 atom *evaluate(atom *atoms);
@@ -95,7 +95,7 @@ int string_is_char(char *string);
 
 atom *nil_atom();
 
-realfunction *functions;
+symbol *symbols;
 
 #include "builtinfunctions.c"
 
@@ -226,24 +226,27 @@ data *float_to_data(double f) {
 atom *nil_atom() {
   atom *a = malloc(sizeof(atom));
   a->d = NULL;
-  a->a = NULL;
+  a->s = NULL;
   a->f = NULL;
+  a->sym = NULL;
   a->next = NULL;
   return a;
 }
 
 atom *do_sub(atom *a) {
-  if (!a || !a->a) return a;
+  if (!a || !a->s) return a;
   atom *r = malloc(sizeof(atom));
-  atom *s = evaluate(a->a);
+  atom *s = evaluate(a->s);
   
   if (s->next) {
+    r->sym = NULL;
     r->d = NULL;
     r->f = NULL;
-    r->a = s;
+    r->s = s;
   } else {
+    r->sym = s->sym;
     r->d = s->d;
-    r->a = s->a;
+    r->s = s->s;
     r->f = s->f;
   }
 
@@ -254,22 +257,25 @@ atom *do_sub(atom *a) {
 atom *flatten(atom *o) {
   atom *a;
 
-  if (o->a)
+  if (o->s)
     o = do_sub(o);
 
   for (a = o; a && a->next; a = a->next)
-    if (a->next->a)
+    if (a->next->s)
       a->next = do_sub(a->next);
+    else if (a->next->sym) {
+      printf("WHY THE FUCK IS THERE A SYMBOL HERE!!!\n\n");
+    }
 
   return o;
 }
 
 int isclean(atom *a) {
   for (; a; a = a->next)
-    if (a->f && !a->f->function)
+    if (a->sym && !a->sym->atoms)
       return 0;
-    else if (a->a)
-      if (!isclean(a->a))
+    else if (a->s)
+      if (!isclean(a->s))
 	return 0;
   return 1;
 }
@@ -290,10 +296,13 @@ char *atom_to_string(atom *a) {
     } else {
       sprintf(result, "ERROR: What the fuck is this!");
     }
-  } else if (a->a) {
-    sprintf(result, "(%s)", atom_to_string(a->a));
+  } else if (a->s) {
+    sprintf(result, "(%s)", atom_to_string(a->s));
   } else if (a->f) {
-    sprintf(result, "[%s %s]", a->f->name, atom_to_string(a->f->atoms));
+    sprintf(result, "func");
+    //    sprintf(result, "[%s <- %s]", atom_to_string(a->f->function), atom_to_string(a->f->atoms));
+  } else if (a->sym) {
+    sprintf(result, "`%s`", a->sym->name);
   } else {
     sprintf(result, "()");
   }
@@ -311,8 +320,9 @@ char *atom_to_string(atom *a) {
 atom *data_to_atom(data *d) {
   atom *a = malloc(sizeof(atom));
   a->d = d;
-  a->a = NULL;
+  a->s = NULL;
   a->f = NULL;
+  a->sym = NULL;
   a->next = NULL;
   return a;
 }
@@ -331,9 +341,13 @@ function *copy_function(function *f) {
   function *r;
   r = malloc(sizeof(function));
 
-  r->name = f->name;
+  r->args = copy_atom(f->args);
+  r->argc = f->argc;
   r->atoms = copy_atom(f->atoms);
-  r->function = f->function;
+  r->function = copy_atom(f->function);
+  r->b_function = f->b_function;
+  r->accept_dirty = f->accept_dirty;
+  r->flat = f->flat;
 
   return r;
 }
@@ -342,43 +356,52 @@ atom *copy_atom(atom *a) {
   if (!a) return NULL;
   atom *b = malloc(sizeof(atom));
   b->d = copy_data(a->d);
-  b->a = copy_atom(a->a);
+  b->s = copy_atom(a->s);
   b->f = copy_function(a->f);
+  b->sym = a->sym;
   b->next = copy_atom(a->next);
   return b;
 }
 
-realfunction *find_function(char *name) {
-  realfunction *f;
-  for (f = functions; f; f = f->next)
-    if (strcmp(f->name, name) == 0)
-      return f;
-  
+symbol *find_symbol(char *name) {
+  symbol *s;
+  for (s = symbols; s; s = s->next)
+    if (strcmp(s->name, name) == 0)
+      return s;
+
   return NULL;
 }
 
-function *real_function_to_function(realfunction *f) {
-  if (!f)
-    return NULL;
+atom *swap_symbols(atom *atoms) {
+  atom *a, *s;
+  for (a = atoms; a; a = a->next) {
+    if (a->sym && a->sym->atoms) {
+      s = copy_atom(a->sym->atoms);
+      a->d = s->d;
+      a->s = s->s;
+      a->f = s->f;
+      a->sym = NULL;
+    } else if (a->s) {
+      a->s = swap_symbols(a->s);
+    }
+  }
 
-  function *r = malloc(sizeof(function));
-  r->name = f->name;
-  r->function = f;
-  r->atoms = NULL;
-  return r;
+  return atoms;
 }
 
-atom *evaluate(atom *atoms) {
+atom *evaluate(atom *raw) {
   int argc, i;
-  atom *a, *r, *args, *rest;
+  atom *atoms, *a, *r, *args;
 
+  atoms = swap_symbols(raw);
+  
   if (!atoms) return NIL;
   
-  if (atoms->a)
+  if (atoms->s)
     atoms = do_sub(atoms);
 
-  if (atoms && atoms->f) {
-    if (!atoms->f->function)
+  if (atoms->f) {
+    if (!atoms->f->function && !atoms->f->b_function)
       return atoms;
 
     args = atoms->f->atoms;
@@ -387,46 +410,41 @@ atom *evaluate(atom *atoms) {
     else
       args = atoms->next;
     
-    rest = NULL;
-    
-    argc = atoms->f->function->argc;
+    argc = atoms->f->argc;
     for (i = 0, a = args; a; a = a->next, i++);
     
     if (argc > 0 && i > argc) {
+      printf("too many arguments\n");
       atom *prev = NULL;
       for (i = 0, a = args; a; prev = a, a = a->next, i++) {
 	if (i >= argc) {
-	  rest = a;
-	  if (prev)
-	    prev->next = NULL;
+	  prev->next = NULL;
 	  break;
 	}
       }
 
     } else if (i < argc || (argc < 0 && i < -argc)) {
+      printf("Not enough arguments\n");
       atoms->f->atoms = args;
       atoms->next = NULL;
 
       return atoms;
     }
     
-    if (atoms->f->function->b_function) {
-      if (atoms->f->function->accept_dirty || isclean(args)) {
-	if (atoms->f->function->flat) {
-	  r = atoms->f->function->b_function(flatten(args));
+    if (atoms->f->b_function) {
+      if (atoms->f->accept_dirty || isclean(args)) {
+	if (atoms->f->flat) {
+	  r = atoms->f->b_function(flatten(args));
 	} else {
-	  r = atoms->f->function->b_function(args);
+	  r = atoms->f->b_function(args);
 	}
       } else {
 	r = atoms;
       }
     } else {
-      r = do_lisp_function(atoms, args);
+      r = do_lisp_function(atoms, flatten(args));
     }
 
-    for (a = r; a && a->next; a = a->next);
-    if (a)
-      a->next = rest;
     return r;
   } else
     return atoms;
@@ -459,20 +477,23 @@ atom *parse(char *string) {
       atoms->next = malloc(sizeof(atom));
       atoms = atoms->next;
       atoms->d = NULL;
-      atoms->a = malloc(sizeof(atom));
+      atoms->s = malloc(sizeof(atom));
       atoms->f = NULL;
+      atoms->sym = NULL;
       atoms->next = NULL;
 
-      t = atoms->a;
+      t = atoms->s;
       for (j = 0; chars[j]; j++) {
 	t->d = char_to_data(chars[j]);
-	t->a = NULL;
+	t->s = NULL;
 	t->f = NULL;
+	t->sym = NULL;
 	t->next = malloc(sizeof(atom));
 	t = t->next;
 	t->d = NULL;
 	t->f = NULL;
-	t->a = NULL;
+	t->s = NULL;
+	t->sym = NULL;
 	t->next = NULL;
       }
 
@@ -487,21 +508,22 @@ atom *parse(char *string) {
       atoms->next = malloc(sizeof(atom));
       atoms = atoms->next;
       atoms->d = NULL;
-      atoms->a = NULL;
+      atoms->s = NULL;
       atoms->f = NULL;
+      atoms->sym = NULL;
       atoms->next = NULL;
-      
+
       if (d) {
 	atoms->d = d;
       } else {
-	function *f = real_function_to_function(find_function(name));
-	if (f) {
-	  atoms->f = f;
+	symbol *s = find_symbol(name);
+	if (s) {
+	  atoms->sym = s;
 	} else {
-	  atoms->f = malloc(sizeof(function));
-	  atoms->f->name = name;
-	  atoms->f->atoms = NULL;
-	  atoms->f->function = NULL;
+	  atoms->sym = malloc(sizeof(symbol));
+	  atoms->sym->name = name;
+	  atoms->sym->atoms = NULL;
+	  atoms->sym->next = NULL;
 	}
       }
       
@@ -517,10 +539,11 @@ atom *parse(char *string) {
 	atoms->next = NULL;
 	atoms->d = NULL;
 	atoms->f = NULL;
-	atoms->a = sub;
+	atoms->sym = NULL;
+	atoms->s = sub;
 	
 	atom *a;
-	for (a = atoms->a; a && a->next; a = a->next);
+	for (a = atoms->s; a && a->next; a = a->next);
 	a->next = NIL;
       } else {
 	atoms->next = NIL;
@@ -596,22 +619,36 @@ void repl(FILE *in, int print) {
 
 void init_built_in_functions() {
   int i;
-  realfunction *f;
+  function *f;
+  symbol *s;
+  atom *a;
  
-  functions = malloc(sizeof(realfunction));
-  for (i = 0, f = functions; i < BUILT_IN_FUNCTIONS_N; i++) {
-    f->name = built_in_functions[i].name;
+  symbols = malloc(sizeof(symbol));
+  for (i = 0, s = symbols; i < BUILT_IN_FUNCTIONS_N; i++) {
+
+    f = malloc(sizeof(function));
     f->args = NULL;
     f->argc = built_in_functions[i].argc;
+    f->atoms = NULL;
     f->function = NULL;
     f->b_function = built_in_functions[i].function;
     f->accept_dirty = built_in_functions[i].accept_dirty;
     f->flat = built_in_functions[i].flat;
-    f->next = NULL;
 
-    if (i < BUILT_IN_FUNCTIONS_N - 1) {
-      f->next = malloc(sizeof(realfunction));
-      f = f->next;
+    a = malloc(sizeof(atom));
+    a->f = f;
+    a->s = NULL;
+    a->d = NULL;
+    a->sym = NULL;
+    a->next = NULL;
+
+    s->name = built_in_functions[i].name;
+    s->atoms = a;
+    s->next = NULL;
+
+    if (i + 1 < BUILT_IN_FUNCTIONS_N) {
+      s->next = malloc(sizeof(symbol));
+      s = s->next;
     }
   }
 }

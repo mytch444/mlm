@@ -15,18 +15,23 @@ Language
 ========
 
 Everything is an atom.
-An atom is either a function, data or a list. I cannot be more than one of these. It is structured like this. The is also a nil atom, this is any atom that doesn't have data, a list or a function (can have next).
+An atom is either a function, data, a list or a symbol (which may or may not be assigned to anything). I cannot be more than one of these. It is structured like this. 
 
 atom - next -> another atom (next in the list)
      - data
      - list
      - function
+     - symbol
+
+Nil is a special type of atom. It is any atom that doesn't have data, a list, a function or a symbol (can have next).
 
 Data has a type (int, char or float (actually a double) at the moment) and it's value, either an int or double.
 
 Lists are just atoms that are joined together by the atoms next thingime.
 
-Functions have a name. A list of atoms that will be prepended to the arguments, this is so you can use functions that are not complete such as giving map (+ 2) to add two to every atom in the list. And a pointer the a real function. Realfunctions are just how I am storing functions at the moment.
+Functions can be defined with lambda. They have a list of arguments (which should all be symbols to nothing), and an expression. When a function is at the start of a list the rest of the list up to the number of arguments it takes is given to the function which are then swaped in and it is evaluated. If you give a function more arguments that it is ment to have the rest are just ignored.
+
+Symbols can be defined with define and are then constant for the rest of the duration of the interpreters run time. They can be redefined.
 
 Functions
 =========
@@ -50,7 +55,7 @@ Name, number of arguments plus the nil at the end, explanation.
 
       -- These will be explained. 
       "cond", 1+, explained later.
-      "define", 4, defines atom to symbol.
+      "define", 3, defines atom to symbol.
       "\", 3, lambda, creates a function.
 
 Cond
@@ -82,17 +87,19 @@ Syntax
 
 An example:
 
+(define else 1)
+
 (define map
   (\ (f l)
    (cond ((nil? l) ())
-	 ((else) (cons
+	 (else (cons
 		(f (car l))
 		(map f (cdr l)))))))
 
-(map (+ 1) "hello")
+(map (\ (a) (+ a 1)) (1 2 3))
 
 "hello" is syntactic sugar for ('h' 'e' 'l' 'l' 'o' ()).
-Other than that it's pretty much lisp. Or scheme, probably similar to scheme.
+Other than that it's pretty much lisp. Or scheme, probably more similar to scheme.
 
 Interpretter
 ============
