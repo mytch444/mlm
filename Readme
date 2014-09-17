@@ -86,7 +86,7 @@ Lambda takes two arguments, the first is a list of functions that shouldn't be a
 Print
 =====
 Use:
-	(print "What a good %'th of % it is!", 10 "March")
+	(print "What a good %'th of % it is!" 10 "March")
 
 Will print out "What a good 10'th of march it is!" to stdout and return 1.
 So it swapps all the %'s with the argument that many %'s in. %% will print out %.
