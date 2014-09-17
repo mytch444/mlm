@@ -99,7 +99,7 @@ symbol *symbols;
 
 #include "builtinfunctions.c"
 
-#define BUILT_IN_FUNCTIONS_N 16
+#define BUILT_IN_FUNCTIONS_N 17
 
 built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
   {"+", addfunction, 0, 1, 3},
@@ -118,6 +118,7 @@ built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
   {"cond", condfunction, 0, 0, -1},
   {"define", definefunction, 1, 1, 3},
   {"\\", lambdafunction, 1, 0, 3},
+  {"print", printfunction, 1, 1, -2},
 };
 
 int closing_bracket_pos(char *string, int open) {
@@ -297,10 +298,22 @@ char *atom_to_string(atom *a) {
       sprintf(result, "ERROR: What the fuck is this!");
     }
   } else if (a->s) {
-    sprintf(result, "(%s)", atom_to_string(a->s));
+    atom *s;
+    int i;
+    for (i = 0, s = a->s; s && s->next; s = s->next, i++) {
+      if (!s->d || s->d->type != CHAR) {
+	result[0] = '\0';
+	break;
+      }
+
+      result[i] = s->d->i;
+    }
+
+    if (!result[0])
+      sprintf(result, "(%s)", atom_to_string(a->s));
+    
   } else if (a->f) {
-    sprintf(result, "func");
-    //    sprintf(result, "[%s <- %s]", atom_to_string(a->f->function), atom_to_string(a->f->atoms));
+    sprintf(result, "(\\");
   } else if (a->sym) {
     sprintf(result, "`%s`", a->sym->name);
   } else {
@@ -531,6 +544,11 @@ atom *parse(char *string) {
     } else if (string[i] == '(') {
       start = i + 1;
       end = closing_bracket_pos(string, start - 1);
+      if (start > end) {
+	printf("Error parsing\n");
+	return NULL;
+      }
+      
       atom *sub = parse(string_cut(string, start, end));
       
       if (sub) {
@@ -554,7 +572,7 @@ atom *parse(char *string) {
       i = end + 1;
     } else {
       printf("I have no idea what to do with this char '%c'\n", string[i]);
-      i++;
+      return NULL;
     }
   }
   
@@ -601,9 +619,9 @@ void repl(FILE *in, int print) {
       string[c + d] = '\0';
       
       for (c = 0; line[c]; c++)
-	if (line[c] == '\'' || line[c] == '\"') inquote = !inquote;
-	else if (line[c] == '(') open++;
-	else if (line[c] == ')') close++;
+	if ((!inquote && line[c] == '\'') || line[c] == '\"') inquote = !inquote;
+	else if (line[c] == '(' && !inquote) open++;
+	else if (line[c] == ')' && !inquote) close++;
       
     } while (open != close || inquote);
     

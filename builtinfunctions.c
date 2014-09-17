@@ -198,6 +198,56 @@ atom *condfunction(atom *atoms) {
   return NIL;
 }
 
+
+atom *printfunction(atom *atoms) {
+  atom *ca, *a, *r, *copy;
+  char string[1000], c, *sub;
+  int i, j;
+
+  if (!atoms->s)
+    return NIL;
+
+  a = atoms->next;
+
+  string[0] = '\0';  
+  for (i = 0, ca = atoms->s; ca; ca = ca->next) {
+    if (!ca->d || ca->d->type != CHAR)
+      break;
+
+    c = ca->d->i;
+
+    if (c == '%') {
+      if (ca->next && ca->next->d && ca->next->d->type == CHAR && ca->next->d->i == '%') {
+	string[i++] = '%';
+	string[i] = '\0';
+	continue;
+      }
+	
+      if (!a)
+	continue;
+
+      copy = copy_atom(a);
+      copy->next = NULL;
+      
+      sub = atom_to_string(copy);
+      a = a->next;
+
+      for (j = 0; sub[j]; j++)
+	string[i + j] = sub[j];
+      string[i + j] = '\0';
+      
+      i += j;
+      
+    } else {
+      string[i++] = c;
+      string[i] = '\0';
+    }
+  }
+
+  printf("%s\n", string);
+  return TRUE;
+}
+
 atom *lambdafunction(atom *atoms) {
   int argc;
   function *f;
