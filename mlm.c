@@ -99,14 +99,16 @@ symbol *symbols;
 
 #include "builtinfunctions.c"
 
-#define BUILT_IN_FUNCTIONS_N 17
+#define BUILT_IN_FUNCTIONS_N 19
 
 built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
   {"+", addfunction, 0, 1, 3},
   {"-", subfunction, 0, 1, 3},
   {"*", mulfunction, 0, 1, 3},
   {"/", divfunction, 0, 1, 3},
-  {"=", equalfunction, 0, 1, -3},
+  {"=", equalfunction, 0, 1, 3},
+  {"<", lessthanfunction, 0, 1, 3},
+  {">", greaterthanfunction, 0, 1, 3},
   {"int?", isint, 0, 1, 2},
   {"float?", isfloat, 0, 1, 2},
   {"list?", islist, 0, 1, 2},
@@ -202,6 +204,7 @@ data *char_to_data(char c) {
   
   d->type = CHAR;
   d->i = c;
+  d->f = 0;
   
   return d;
 }
@@ -211,6 +214,7 @@ data *int_to_data(int i) {
   
   d->type = INT;
   d->i = i;
+  d->f = 0;
   
   return d;
 }
@@ -220,6 +224,7 @@ data *float_to_data(double f) {
   
   d->type = FLOAT;
   d->f = f;
+  d->i = 0;
   
   return d;
 }
@@ -389,8 +394,8 @@ atom *swap_symbols(atom *atoms) {
   atom *a, *s;
   for (a = atoms; a; a = a->next) {
     if (a->sym && a->sym->atoms) {
-      s = copy_atom(a->sym->atoms);
-      a->d = s->d;
+      s = a->sym->atoms;
+      a->d = copy_data(s->d);
       a->s = s->s;
       a->f = s->f;
       a->sym = NULL;
@@ -600,12 +605,12 @@ void repl(FILE *in, int print) {
   char string[5000];
   atom *result;
   atom *parsed;
-  int c, d, open, close, inquote;
+  int c, d, open, close, inquote, inchar;
   
   while (1) {
     if (print) printf("-> ");
     
-    open = close = inquote = 0;
+    open = close = inquote = inchar = 0;
     string[0] = '\0';
     line[0] = '\0';
     
@@ -619,11 +624,12 @@ void repl(FILE *in, int print) {
       string[c + d] = '\0';
       
       for (c = 0; line[c]; c++)
-	if ((!inquote && line[c] == '\'') || line[c] == '\"') inquote = !inquote;
+	if (!inquote && line[c] == '\'') inchar = !inchar;
+	else if(line[c] == '\"') inquote = !inquote;
 	else if (line[c] == '(' && !inquote) open++;
 	else if (line[c] == ')' && !inquote) close++;
       
-    } while (open != close || inquote);
+    } while (open != close || inquote || inchar);
     
     for (c = 0; string[c] && string[c + 1]; c++);
     if (string[c] == '\n')

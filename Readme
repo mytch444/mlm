@@ -37,27 +37,32 @@ Functions
 =========
 Currently the bult in functions are
 
-Name, number of arguments plus the nil at the end, explanation.
+Name, number of arguments, explanation.
       -- These should be self explanatory.
-      "+", 3, adds
-      "-", 3, subtracts from the first argument
-      "*", 3, multiplies
-      "/", 3, divides
-      "=", 3+, check for equality for all but end nil.
-      "int?", 2, checks if atom is int.
-      "float?", 2, checks if atom is float.
-      "list?", 2, checks if atom is list.
-      "nil?", 2, checks if atom is nil.
-      "list", 1+, creates a list from arguments.
-      "cons", 3, makes second argument the next of first.
-      "car", 2, returns first atom in list.
-      "cdr", 2, returns next from list.
+      "+", 2, adds
+      "-", 2, subtracts from the first argument
+      "*", 2, multiplies
+      "/", 2, divides
+      "=", 2, check for equality for all but end nil.
+      ">", 2, check if first arg is greater than second.
+      "<", 2, check if first arg is less than second.
+      "int?", 1, checks if atom is int.
+      "float?", 1, checks if atom is float.
+      "list?", 1, checks if atom is list.
+      "nil?", 1, checks if atom is nil.
+      "list", 0+, creates a list from arguments.
+      "cons", 2, makes second argument the next of first.
+      "car", 1, returns first atom in list.
+      "cdr", 1, returns next from list.
 
       -- These will be explained. 
       "cond", 1+, explained later.
-      "define", 3, defines atom to symbol.
-      "\", 3, lambda, creates a function.
+      "define", 2, defines atom to symbol.
+      "\", 2, lambda, creates a function.
       "print", 1+, prints stuff.
+
+Those ones are built into the language.      
+There are a whole heap of more usefull ones in funcs.l.
 
 Cond
 ====

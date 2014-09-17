@@ -1,6 +1,5 @@
 atom *addfunction(atom *a) {
   atom *r;
-  if (!a || !a->next) return NIL;
   if (a->s) {
     printf("I don't to lists\n");
     return NIL;
@@ -18,7 +17,6 @@ atom *addfunction(atom *a) {
 
 atom *subfunction(atom *a) {
   atom *r;
-  if (!a || !a->next) return NIL;
   if (a->s) {
     printf("I don't to lists\n");
     return NIL;
@@ -36,7 +34,6 @@ atom *subfunction(atom *a) {
 
 atom *mulfunction(atom *a) {
   atom *r;
-  if (!a || !a->next) return NIL;
   if (a->s) {
     printf("I don't to lists\n");
     return NIL;
@@ -54,7 +51,6 @@ atom *mulfunction(atom *a) {
 
 atom *divfunction(atom *a) {
   atom *r;
-  if (!a || !a->next) return NIL;
   if (a->s) {
     printf("I don't to lists\n");
     return NIL;
@@ -71,52 +67,73 @@ atom *divfunction(atom *a) {
 }
 
 atom *equalfunction(atom *atoms) {
-  atom *a;
-  for (a = atoms; a && a->next; a = a->next) {
-    if (!a->next->d && !a->next->s && !a->next->f && !a->next->next) break;
-    if (a->d && a->next->d) {
-      data *d = a->d;
-      data *n = a->next->d;
-
-      if (d->type == FLOAT && n->type == FLOAT) {
-	if (d->f != n->f)
-	  return NIL;
-      } else if ((d->type == INT && n->type == INT) ||
-		 (d->type == CHAR && n->type == CHAR)) {
-	if (d->i != n->i)
-	  return NIL;
-      } else
-	return NIL;
-      
-    } else if (a->s && a->next->s) {
-      // Not sure if working properly, seems to be but does some funny stuff
-      // that could affect further shit.
-      atom *suba = a->s;
-      atom *subb = a->next->s;
-
-      atom *a, *b;
-      for (a = suba, b = subb; 1; a = a->next, b = b->next) {
-	if (!a && !b) break;
-	else if (a && !b) return NIL;
-	else if (!a && b) return NIL;
-	else {
-	  atom *tmpa = a->next;
-	  atom *tmpb = b->next;
-	  a->next = b;
-	  b->next = NULL;
-	  atom *r = equalfunction(a);
-	  if (r->d->i == 0) return NIL;
-	  a->next = tmpa;
-	  b->next = tmpb;
-	}
-      }
-    } else if (a->f && a->next->f) {
-      printf("Cannot compare functions at the moment, give me a while. And remind me!\n");
-    } else if (a->next->d || a->next->s) {
+  atom *a = atoms;
+  atom *b = atoms->next;
+  
+  if (a->d && b->d) {
+    if (a->d->i != b->d->i || a->d->f != b->d->f)
       return NIL;
-    } else
+  } else if (a->s && b->s) {
+    for (a = a->s, b = b->s; 1; a = a->next, b = b->next) {
+      if (!a && !b) break;
+      else if (!a || !b) return NIL;
+      else {
+	atom *tmpa = a->next;
+	a->next = b;
+	atom *r = equalfunction(a);
+	a->next = tmpa;
+	if (!r->d && !r->f && !r->s)
+	  return NIL;
+      }
+    }  
+  } else if (a->f && b->f) {
+    if (a->f != b->f)
       return NIL;
   }
+  
+  return TRUE;
+}
+
+atom *lessthanfunction(atom *atoms) {
+  atom *a = atoms;
+  atom *b = atoms->next;
+  
+  if (a->d && b->d) {
+    if (
+	((a->d->type == INT || a->d->type == CHAR) && a->d->i >= b->d->i)
+	|| ((a->d->type == FLOAT) && a->d->f >= b->d->f))
+      return NIL;
+  } else if (a->s && b->s) {
+    int as, bs;
+    for (as = 0, a = a->s; a; a = a->next, as++);
+    for (bs = 0, b = b->s; b; b = b->next, bs++);
+
+    if (as >= bs)
+      return NIL;
+  } else
+    return NIL;
+  
+  return TRUE;
+}
+
+atom *greaterthanfunction(atom *atoms) {
+  atom *a = atoms;
+  atom *b = atoms->next;
+  
+  if (a->d && b->d) {
+    if (
+	((a->d->type == INT || a->d->type == CHAR) && a->d->i <= b->d->i)
+	|| ((a->d->type == FLOAT) && a->d->f <= b->d->f))
+      return NIL;
+  } else if (a->s && b->s) {
+    int as, bs;
+    for (as = 0, a = a->s; a; a = a->next, as++);
+    for (bs = 0, b = b->s; b; b = b->next, bs++);
+
+    if (as <= bs)
+      return NIL;
+  } else
+    return NIL;
   
   return TRUE;
 }
