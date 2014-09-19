@@ -1,19 +1,25 @@
 (define else
   1)
 
+(define t
+  1)
+
+(define f
+  ())
+
 (define >=
   (\ (a b)
    (cond
-    ((= a b) 1)
-    ((> a b) 1)
-    (else ()))))
+    ((= a b) t)
+    ((> a b) t)
+    (else f))))
 
 (define <=
   (\ (a b)
    (cond
-    ((= a b) 1)
-    ((< a b) 1)
-    (else ()))))
+    ((= a b) t)
+    ((< a b) t)
+    (else f))))
 
 (define 1+
   (\ (a)
@@ -34,11 +40,11 @@
 		  (pow a (- b 1)))))))
 
 (define map
-  (\ (f l)
+  (\ (func l)
    (cond ((nil? l) ())
 	 (else (cons
-		(f (car l))
-		(map f (cdr l)))))))
+		(func (car l))
+		(map func (cdr l)))))))
 
 (define n
   (\ (i l)
@@ -52,8 +58,8 @@
 
 (define not
   (\ (a)
-   (cond ((nil? a) 1)
-	 (else ()))))
+   (cond ((nil? a) t)
+	 (else f))))
 
 (define !=
   (\ (a b)
@@ -63,16 +69,16 @@
   (\ (a b)
    (cond
     (a (cond
-	(b 1)
-	(else ())))
-    (else ()))))
+	(b t)
+	(else f)))
+    (else f)))
 
 (define or
   (\ (a b)
    (cond
-    (a 1)
-    (b 1)
-    (else ()))))
+    (a t)
+    (b t)
+    (else f))))
 
 (define char-to-upper
   (\ (c)

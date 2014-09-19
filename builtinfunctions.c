@@ -87,8 +87,39 @@ atom *equalfunction(atom *atoms) {
       }
     }  
   } else if (a->f && b->f) {
-    if (a->f != b->f)
-      return NIL;
+    if (a->f->b_function && b->f->b_function) {
+      if (a->f->b_function != b->f->b_function)
+	return NIL;
+    } else if (a->f->function && b->f->function) {
+      atom *tmp, *r;
+      
+      // Check if the functoin is equal.
+      tmp = a->f->function;
+      tmp->next = b->f->function;
+      r = equalfunction(tmp);
+      if (!r->d && !r->f && !r->s)
+	return NIL;
+
+      printf("Checking atoms\n");
+
+      // Check if the atoms are equal.
+      tmp = malloc(sizeof(atom));
+      tmp->d = NULL;
+      tmp->f = NULL;
+      tmp->sym = NULL;
+      tmp->s = a->f->atoms;
+      tmp->next = malloc(sizeof(atom));
+      tmp->d = NULL;
+      tmp->f = NULL;
+      tmp->sym = NULL;
+      tmp->s = b->f->atoms;
+      tmp->next = NULL;
+      printf("Checking '%s'\n", atom_to_string(tmp));
+      r = equalfunction(tmp);
+      if (!r->d && !r->f && !r->s)
+	return NIL;
+      printf("all good\n");
+    }
   }
   
   return TRUE;
@@ -277,7 +308,7 @@ atom *lambdafunction(atom *atoms) {
   for (argc = 0, a = args; a; a = a->next, argc++);
   func = copy_atom(atoms->next);
   func->next = NULL;
-  
+
   f = malloc(sizeof(function));
   f->args = args;
   f->argc = argc;
@@ -285,7 +316,7 @@ atom *lambdafunction(atom *atoms) {
   f->function = func;
   f->b_function = NULL;
   f->accept_dirty = 0;
-  f->flat = 0;
+  f->flat = 1;
 
   r = malloc(sizeof(atom));
   r->next = NULL;
@@ -379,7 +410,7 @@ atom *do_lisp_function(atom *fa, atom *atoms) {
   if (!fa || !fa->f)
     return NIL;
 
-  func = swap_in_args(copy_atom(fa->f->function), copy_atom(fa->f->args), atoms);
+  func = swap_in_args(copy_atom(fa->f->function), fa->f->args, atoms);
 
   atom *funce = evaluate(func);
   return funce;

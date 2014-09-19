@@ -102,6 +102,7 @@ symbol *symbols;
 #define BUILT_IN_FUNCTIONS_N 19
 
 built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
+  // name, function, accept_dirty, flat, argc.
   {"+", addfunction, 0, 1, 3},
   {"-", subfunction, 0, 1, 3},
   {"*", mulfunction, 0, 1, 3},
@@ -267,9 +268,9 @@ atom *flatten(atom *o) {
     o = do_sub(o);
 
   for (a = o; a && a->next; a = a->next)
-    if (a->next->s)
+    if (a->next->s) {
       a->next = do_sub(a->next);
-    else if (a->next->sym) {
+    } else if (a->next->sym) {
       printf("WHY THE FUCK IS THERE A SYMBOL HERE!!!\n\n");
     }
 
@@ -278,9 +279,9 @@ atom *flatten(atom *o) {
 
 int isclean(atom *a) {
   for (; a; a = a->next)
-    if (a->sym && !a->sym->atoms)
+    if (a->sym && !a->sym->atoms) {
       return 0;
-    else if (a->s)
+    } else if (a->s)
       if (!isclean(a->s))
 	return 0;
   return 1;
@@ -318,7 +319,7 @@ char *atom_to_string(atom *a) {
       sprintf(result, "(%s)", atom_to_string(a->s));
     
   } else if (a->f) {
-    sprintf(result, "(\\");
+    sprintf(result, "f");
   } else if (a->sym) {
     sprintf(result, "`%s`", a->sym->name);
   } else {
@@ -396,8 +397,8 @@ atom *swap_symbols(atom *atoms) {
     if (a->sym && a->sym->atoms) {
       s = a->sym->atoms;
       a->d = copy_data(s->d);
-      a->s = s->s;
-      a->f = s->f;
+      a->s = copy_atom(s->s);
+      a->f = copy_function(s->f);
       a->sym = NULL;
     } else if (a->s) {
       a->s = swap_symbols(a->s);
@@ -448,19 +449,20 @@ atom *evaluate(atom *raw) {
 
       return atoms;
     }
-    
+
+    if (atoms->f->flat) {
+      a = flatten(args);
+    } else
+      a = args;
+      
     if (atoms->f->b_function) {
-      if (atoms->f->accept_dirty || isclean(args)) {
-	if (atoms->f->flat) {
-	  r = atoms->f->b_function(flatten(args));
-	} else {
-	  r = atoms->f->b_function(args);
-	}
+      if (atoms->f->accept_dirty || isclean(a)) {
+	r = atoms->f->b_function(a);
       } else {
-	r = atoms;
+	r = a;
       }
     } else {
-      r = do_lisp_function(atoms, flatten(args));
+      r = do_lisp_function(atoms, a);
     }
 
     return r;

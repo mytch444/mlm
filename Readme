@@ -88,6 +88,16 @@ Use:
 
 Lambda takes two arguments, the first is a list of functions that shouldn't be associated with anything (make up a new fucking name, I'll get a better description latter) and the second which is an expression that uses the arguments to return a value. So the above returns a function that when given a single argument returns that argument squared.
 
+NOTE
+====
+It should be noted, that due to my infinite stupidity, one cannot have local variables override global ones. So if you define f to b () then don't go making a map function that has f for the arg that is the function to be mapped, as it will be () before it gets to lambda and will consequently give you crap when you try use it.
+
+I am sorry. I am a fool.
+
+And fixing this will either require some fucking around and ruining the perfect equallity of the functions, or something genius. If I feel smart this may be fixed.
+END OF VERY IMPORTANT NOTE
+==========================
+
 Print
 =====
 Use:
