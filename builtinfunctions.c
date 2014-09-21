@@ -87,8 +87,8 @@ atom *equalfunction(atom *atoms) {
       }
     }  
   } else if (a->f && b->f) {
-    if (a->f->b_function && b->f->b_function) {
-      if (a->f->b_function != b->f->b_function)
+    if (a->f->c_function && b->f->c_function) {
+      if (a->f->c_function != b->f->c_function)
 	return NIL;
     } else if (a->f->function && b->f->function) {
       atom *tmp, *r;
@@ -246,7 +246,6 @@ atom *condfunction(atom *atoms) {
   return NIL;
 }
 
-
 atom *printfunction(atom *atoms) {
   atom *ca, *a, *r, *copy;
   char string[1000], c, *sub;
@@ -314,7 +313,7 @@ atom *lambdafunction(atom *atoms) {
   f->argc = argc;
   f->atoms = NULL;
   f->function = func;
-  f->b_function = NULL;
+  f->c_function = NULL;
   f->accept_dirty = 0;
   f->flat = 1;
 
@@ -326,25 +325,6 @@ atom *lambdafunction(atom *atoms) {
   r->f = f;
 
   return r;
-}
-
-atom *update_symbols(atom *atoms) {
-  atom *a;
-  symbol *s;
-  for (a = atoms; a; a = a->next) {
-    if (a->sym) {
-      s = find_symbol(a->sym->name);
-      if (s)
-	a->sym = s;
-    } else if (a->s) {
-      a->s = update_symbols(a->s);
-    } else if (a->f) {
-      a->f->atoms = update_symbols(a->f->atoms);
-      a->f->function = update_symbols(a->f->function);
-    }
-  }
-
-  return atoms;
 }
 
 atom *definefunction(atom *atoms) {
@@ -372,6 +352,19 @@ atom *definefunction(atom *atoms) {
   printf("DEFINED '%s' TO '%s'\n", name, atom_to_string(s->next->atoms));
 
   return TRUE;
+}
+
+atom *do_lisp_function(atom *fa, atom *atoms) {
+  int i;
+  atom *func, *a, *s;
+
+  if (!fa || !fa->f)
+    return NIL;
+
+  func = swap_in_args(copy_atom(fa->f->function), fa->f->args, atoms);
+
+  atom *funce = evaluate(func);
+  return funce;
 }
 
 atom *swap_in_args(atom *func, atom *args, atom *atoms) {
@@ -403,15 +396,57 @@ atom *swap_in_args(atom *func, atom *args, atom *atoms) {
   return func;
 }
 
-atom *do_lisp_function(atom *fa, atom *atoms) {
+atom *update_symbols(atom *atoms) {
+  atom *a;
+  symbol *s;
+  for (a = atoms; a; a = a->next) {
+    if (a->sym) {
+      s = find_symbol(a->sym->name);
+      if (s)
+	a->sym = s;
+    } else if (a->s) {
+      a->s = update_symbols(a->s);
+    } else if (a->f) {
+      a->f->atoms = update_symbols(a->f->atoms);
+      a->f->function = update_symbols(a->f->function);
+    }
+  }
+
+  return atoms;
+}
+
+void init_functions(built_in_function functions[], int fn) {
   int i;
-  atom *func, *a, *s;
+  function *f;
+  symbol *s;
+  atom *a;
+ 
+  symbols = malloc(sizeof(symbol));
+  for (i = 0, s = symbols; i < fn; i++) {
 
-  if (!fa || !fa->f)
-    return NIL;
+    f = malloc(sizeof(function));
+    f->args = NULL;
+    f->argc = functions[i].argc;
+    f->atoms = NULL;
+    f->function = NULL;
+    f->c_function = functions[i].function;
+    f->accept_dirty = functions[i].accept_dirty;
+    f->flat = functions[i].flat;
 
-  func = swap_in_args(copy_atom(fa->f->function), fa->f->args, atoms);
+    a = malloc(sizeof(atom));
+    a->f = f;
+    a->s = NULL;
+    a->d = NULL;
+    a->sym = NULL;
+    a->next = NULL;
 
-  atom *funce = evaluate(func);
-  return funce;
+    s->name = functions[i].name;
+    s->atoms = a;
+    s->next = NULL;
+
+    if (i + 1 < fn) {
+      s->next = malloc(sizeof(symbol));
+      s = s->next;
+    }
+  }
 }

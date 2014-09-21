@@ -1,9 +1,11 @@
-EXEC=mlm
+FILES=mlm.c atom.c atom.h builtinfunctions.c builtinfunctions.h evaluate.c evaluate.h parse.c parse.h
 
 all: mlm
 
-mlm: mlm.c builtinfunctions.c
-	gcc -o $(EXEC) mlm.c
+mlm: $(FILES) mlmc.c mlmi.c
+	gcc -o mlmc mlmc.c
+	gcc -o mlmi mlmi.c
 
 clean:
-	rm $(EXEC)
+	rm mlmc.c
+	rm mlmi.c
