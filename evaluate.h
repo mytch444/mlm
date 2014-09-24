@@ -1,4 +1,5 @@
 atom *evaluate(atom *raw);
+
 atom *copy_atom(atom *a);
 function *copy_function(function *f);
 data *copy_data(data *a);

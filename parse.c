@@ -63,9 +63,11 @@ int string_is_string(char *string) {
 
 symbol *find_symbol(char *name) {
   symbol *s;
-  for (s = symbols; s; s = s->next)
-    if (strcmp(s->name, name) == 0)
+  for (s = symbols; s; s = s->next) {
+    if (strcmp(s->name, name) == 0) {
       return s;
+    }
+  }
 
   return NULL;
 }
@@ -140,6 +142,65 @@ data *string_to_data(char *string) {
   } else return NULL;
 }
 
+atom *string_to_atom_string(char *string) {
+  atom *a, *t;
+  int j;
+  
+  a = malloc(sizeof(atom));
+  a->d = NULL;
+  a->s = malloc(sizeof(atom));
+  a->f = NULL;
+  a->sym = NULL;
+  a->next = NULL;
+
+  t = a->s;
+  for (j = 0; string[j]; j++) {
+    t->d = char_to_data(string[j]);
+    t->s = NULL;
+    t->f = NULL;
+    t->sym = NULL;
+    t->next = malloc(sizeof(atom));
+    t = t->next;
+    t->d = NULL;
+    t->f = NULL;
+    t->s = NULL;
+    t->sym = NULL;
+    t->next = NULL;
+  }
+
+  return a;
+}
+
+atom *constant_to_atom(char *name) {
+  atom *a; 
+
+  a = malloc(sizeof(atom));
+  a->d = NULL;
+  a->s = NULL;
+  a->f = NULL;
+  a->sym = NULL;
+  a->next = NULL;
+
+  data *d = string_to_data(name);
+  if (d) {
+    a->d = d;
+  } else {
+    symbol *s = find_symbol(name);
+    if (s) {
+      //      printf("found\n");
+      a->sym = s;
+    } else {
+      //      printf("making tmp\n");
+      a->sym = malloc(sizeof(symbol));
+      a->sym->name = name;
+      a->sym->atoms = NULL;
+      a->sym->next = NULL;
+    }
+  }
+
+  return a;
+}
+
 atom *parse(char *string) {
   int num, i, start, end, j;
   atom *handle, *atoms, *t;
@@ -159,61 +220,22 @@ atom *parse(char *string) {
       start = i + 1;
       for (i++; string[i] && string[i] != '\"'; i++);
       i++;
-      
-      char *chars = string_cut(string, start, i - 1);
-      atoms->next = malloc(sizeof(atom));
+      if (start >= i)
+	return NIL;
+
+      atoms->next = string_to_atom_string(string_cut(string, start, i - 1));
       atoms = atoms->next;
-      atoms->d = NULL;
-      atoms->s = malloc(sizeof(atom));
-      atoms->f = NULL;
-      atoms->sym = NULL;
-      atoms->next = NULL;
-
-      t = atoms->s;
-      for (j = 0; chars[j]; j++) {
-	t->d = char_to_data(chars[j]);
-	t->s = NULL;
-	t->f = NULL;
-	t->sym = NULL;
-	t->next = malloc(sizeof(atom));
-	t = t->next;
-	t->d = NULL;
-	t->f = NULL;
-	t->s = NULL;
-	t->sym = NULL;
-	t->next = NULL;
-      }
-
       num++;
     } else if (ischar(string[i])) {
       start = i;
       for (; string[i] && ischar(string[i]); i++);
+      if (start >= i)
+	return NIL;
+      
       char *name = string_cut(string, start, i);
-      
-      data *d = string_to_data(name);
-      
-      atoms->next = malloc(sizeof(atom));
-      atoms = atoms->next;
-      atoms->d = NULL;
-      atoms->s = NULL;
-      atoms->f = NULL;
-      atoms->sym = NULL;
-      atoms->next = NULL;
 
-      if (d) {
-	atoms->d = d;
-      } else {
-	symbol *s = find_symbol(name);
-	if (s) {
-	  atoms->sym = s;
-	} else {
-	  atoms->sym = malloc(sizeof(symbol));
-	  atoms->sym->name = name;
-	  atoms->sym->atoms = NULL;
-	  atoms->sym->next = NULL;
-	}
-      }
-      
+      atoms->next = constant_to_atom(name);
+      atoms = atoms->next;
       num++;
     } else if (string[i] == '(') {
       start = i + 1;
@@ -290,7 +312,9 @@ atom *read_expression(FILE *in) {
   } while (open != close || inquote || inchar);
   
   for (c = 0; string[c] && string[c + 1]; c++);
-  if (string[c] == '\n')
+  if (c == 0)
+    return read_expression(in);
+  else if (string[c] == '\n')
     string[c] = '\0';
 
   parsed = parse(string);

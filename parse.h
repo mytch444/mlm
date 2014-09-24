@@ -16,11 +16,15 @@ symbol *find_symbol(char *name);
 atom *swap_symbols(atom *atoms);
 
 atom *data_to_atom(data *d);
+
 data *char_to_data(char c);
 data *int_to_data(int i);
 data *float_to_data(double f);
 
 data *string_to_data(char *string);
+
+atom *string_to_atom_string(char *string);
+atom *constant_to_atom(char *name);
 
 atom *parse(char *string);
 atom *read_expression(FILE *f);

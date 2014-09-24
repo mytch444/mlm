@@ -1,3 +1,66 @@
+atom *evaluate(atom *raw) {
+  int argc, i;
+  atom *atoms, *a, *r, *args;
+
+  atoms = swap_symbols(raw);
+  
+  if (!atoms) return NIL;
+  
+  if (atoms->s)
+    atoms = do_sub(atoms);
+
+  if (atoms->f) {
+    if (!atoms->f->function && !atoms->f->c_function)
+      return atoms;
+
+    args = atoms->f->atoms;
+    for (a = args; a && a->next; a = a->next);
+    if (a)
+      a->next = atoms->next;
+    else
+      args = atoms->next;
+
+    argc = atoms->f->argc;
+    for (i = 0, a = args; a; a = a->next, i++);
+    
+    if (argc > 0 && i > argc) {
+      printf("too many arguments: %i > %i\n", i, argc);
+      atom *prev = NULL;
+      for (i = 0, a = args; a; prev = a, a = a->next, i++) {
+	if (i >= argc) {
+	  prev->next = NULL;
+	  break;
+	}
+      }
+
+    } else if (i < argc || (argc < 0 && i < -argc)) {
+      printf("Not enough arguments: %i < %i\n", i, argc);
+      atoms->f->atoms = args;
+      atoms->next = NULL;
+
+      return atoms;
+    }
+
+    if (atoms->f->flat) {
+      a = flatten(args);
+    } else
+      a = args;
+      
+    if (atoms->f->c_function) {
+      if (atoms->f->accept_dirty || isclean(a)) {
+	r = atoms->f->c_function(a);
+      } else {
+	r = a;
+      }
+    } else {
+      r = do_lisp_function(atoms, a);
+    }
+
+    return r;
+  } else
+    return atoms;
+}
+
 char *atom_to_string(atom *a) {
   char *result = malloc(sizeof(char) * 1000);
   result[0] = '\0';
@@ -128,66 +191,4 @@ atom *copy_atom(atom *a) {
   b->sym = a->sym;
   b->next = copy_atom(a->next);
   return b;
-}
-
-atom *evaluate(atom *raw) {
-  int argc, i;
-  atom *atoms, *a, *r, *args;
-
-  atoms = swap_symbols(raw);
-  
-  if (!atoms) return NIL;
-  
-  if (atoms->s)
-    atoms = do_sub(atoms);
-
-  if (atoms->f) {
-    if (!atoms->f->function && !atoms->f->c_function)
-      return atoms;
-
-    args = atoms->f->atoms;
-    if (args)
-      args->next = atoms->next;
-    else
-      args = atoms->next;
-    
-    argc = atoms->f->argc;
-    for (i = 0, a = args; a; a = a->next, i++);
-    
-    if (argc > 0 && i > argc) {
-      printf("too many arguments\n");
-      atom *prev = NULL;
-      for (i = 0, a = args; a; prev = a, a = a->next, i++) {
-	if (i >= argc) {
-	  prev->next = NULL;
-	  break;
-	}
-      }
-
-    } else if (i < argc || (argc < 0 && i < -argc)) {
-      printf("Not enough arguments\n");
-      atoms->f->atoms = args;
-      atoms->next = NULL;
-
-      return atoms;
-    }
-
-    if (atoms->f->flat) {
-      a = flatten(args);
-    } else
-      a = args;
-      
-    if (atoms->f->c_function) {
-      if (atoms->f->accept_dirty || isclean(a)) {
-	r = atoms->f->c_function(a);
-      } else {
-	r = a;
-      }
-    } else {
-      r = do_lisp_function(atoms, a);
-    }
-
-    return r;
-  } else
-    return atoms;
 }

@@ -36,8 +36,9 @@
 (define pow
   (\ (a b)
    (cond ((= b 0) 1)
-	 (else (* a
-		  (pow a (- b 1)))))))
+	 ((> b 0) (* a
+		     (pow a (- b 1))))
+	 (else (/ 1.0 (pow a (- 0 b)))))))
 
 (define map
   (\ (func l)
@@ -71,7 +72,7 @@
     (a (cond
 	(b t)
 	(else f)))
-    (else f)))
+    (else f))))
 
 (define or
   (\ (a b)
@@ -89,3 +90,44 @@
 (define string-to-upper
   (\ (string)
    (map char-to-upper string)))
+
+(define char-to-int
+  (\ (a)
+   (to-int (- a '0'))))
+
+(define int-to-char
+  (\ (a)
+   (to-char (+ a '0'))))
+
+(define last
+  (\ (l)
+   (cond ((nil? (cdr l)) (car l))
+	 (else (last (cdr l))))))
+
+(define stick-on-end
+  (\ (a l)
+   (cond ((nil? l) (cons a ()))
+	 (else (cons (car l) (stick-on-end a (cdr l)))))))
+
+(define cut-last
+  (\ (l)
+   (cond ((nil? (cdr l)) ())
+	 (else (cons (car l) (cut-last (cdr l)))))))
+
+(define reverse
+  (\ (o)
+   (cond ((nil? o) ())
+	 (else (cons
+		(last o)
+		(reverse (cut-last o)))))))
+
+(define string-to-int-h
+  (\ (s p)
+   (cond ((nil? s) 0)
+	 (else (+
+		(* (char-to-int (car s)) (pow 10 p))
+		(string-to-int-h (cdr s) (+ p 1)))))))
+
+(define string-to-int
+  (\ (s)
+   (string-to-int-h (reverse s) 0)))
