@@ -1,3 +1,8 @@
+; Just some functions for doing stuff. Run
+; ./mlmi funcs.l
+; To load them into the interperater then you can use these.
+; Also checkout test.l
+
 (define else
   1)
 

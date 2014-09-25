@@ -329,6 +329,29 @@ atom *define_function(atom *atoms) {
   return TRUE;
 }
 
+atom *eval_function(atom *atoms) {
+  char *string;
+  atom *a;
+  int i;
+
+  if (!atoms || !atoms->s)
+    return NIL;
+
+  for (i = 0, a = atoms->s; a; a = a->next, i++);
+  string = malloc(sizeof(char) * (i + 1));
+  
+  for (i = 0, a = atoms->s; a && a->next; a = a->next, i++) {
+    if (!a->d || a->d->type != CHAR)
+      return NIL;
+
+    string[i] = a->d->i;
+  }
+  string[i] = '\0';
+
+  a = parse(string);
+  return evaluate(a);
+}
+
 atom *do_lisp_function(atom *fa, atom *atoms) {
   int i;
   atom *func, *a, *s;

@@ -1,5 +1,5 @@
 ; run as:
-; ./mlm funcs.l test.l
+; ./mlmi funcs.l test.l
 ; so that it has the functions declared in funcs.l.
 
 (define print-out-powers

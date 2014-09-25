@@ -62,6 +62,7 @@ Name, number of arguments, explanation.
       "cdr", 1, returns next from list.
 
       "exit", 0, exits the interperater.
+      "eval", 1, evaluates the expression in the string given to it.
 
       -- These will be explained. 
       "cond", 1+, explained later.

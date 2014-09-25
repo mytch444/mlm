@@ -1,9 +1,9 @@
-FILES=atom.c atom.h builtinfunctions.c builtinfunctions.h iofunctions.c iofunctions.h evaluate.c evaluate.h parse.c parse.h repl.c repl.h
+FILES=mlm.c mlm.h builtinfunctions.c builtinfunctions.h
 
-all: mlm
+all: mlmi
 
-mlm: $(FILES) mlm.c
-	gcc -o mlm mlm.c
+mlmi: $(FILES) mlmi.c  iofunctions.c iofunctions.h
+	gcc -o mlmi mlmi.c
 
 clean:
-	rm mlm
+	rm mlmi

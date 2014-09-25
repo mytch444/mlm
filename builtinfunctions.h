@@ -1,10 +1,4 @@
-typedef struct built_in_function built_in_function;
-struct built_in_function {
-  char *name;
-  atom *(*function)(atom *atoms);
-  int accept_dirty, flat;
-  int argc;
-};
+#define init_built_in_functions() init_functions(built_in_functions, BUILT_IN_FUNCTIONS_N)
 
 atom *add_function(atom *a);
 atom *sub_function(atom *a);
@@ -38,14 +32,15 @@ atom *define_function(atom *atoms);
 atom *exit_function(atom *atoms);
 atom *progn_function(atom *atoms);
 
+atom *eval_function(atom *atoms);
+
 atom *do_lisp_function(atom *fa, atom *atoms);
 atom *swap_in_args(atom *func, atom *args, atom *atoms);
 atom *update_symbols(atom *atoms);
 
 void init_functions(struct built_in_function functions[], int fn);
 
-#define BUILT_IN_FUNCTIONS_N 24
-
+#define BUILT_IN_FUNCTIONS_N 25
 built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
   // name, function, accept_dirty, flat, argc.
   {"+", add_function, 0, 1, 3},
@@ -78,6 +73,6 @@ built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
 
   {"exit", exit_function, 0, 0, 1},
   {"progn", progn_function, 0, 0, -1},
-};
 
-symbol *symbols;
+  {"eval", eval_function, 0, 1, 2},
+};

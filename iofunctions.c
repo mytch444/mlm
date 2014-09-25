@@ -37,10 +37,10 @@ atom *print_function(atom *atoms) {
       copy->next = NULL;
 
       if (n == 'i') {
-	sub = malloc(sizeof(char) * (1 + copy->d->i / 10));
+	sub = malloc(sizeof(char) * (1 + copy->d->i / 10 + copy->d->i < 0 ? 1 : 0));
 	sprintf(sub, "%i", copy->d->i);
       } else if (n == 'f') {
-	sub = malloc(sizeof(char) * (1 + copy->d->i / 10));
+	sub = malloc(sizeof(char) * (1 + copy->d->i / 10 + copy->d->i < 0 ? 1 : 0));
 	sprintf(sub, "%f", copy->d->f);
       } else if (n == 'c') {
 	sub = malloc(sizeof(char) * (1 + copy->d->i / 10));
