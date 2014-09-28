@@ -86,6 +86,7 @@ atom *read_function(symbol *symbols, atom *atoms) {
   size_t c;
   char *buf, *b, end;
   int fd, max;
+  atom *r;
 
   if (!atoms || !atoms->d || atoms->d->type != INT ||
       !atoms->next || !atoms->next->d || atoms->next->d->type != INT ||
@@ -106,9 +107,10 @@ atom *read_function(symbol *symbols, atom *atoms) {
       break;
     b++;
   }
-  
-
-  return string_to_atom_string(buf);
+ 
+  r = string_to_atom_string(buf);
+  free(buf);
+  return r;
 }
 
 atom *open_function(symbol *symbols, atom *atoms) {
@@ -128,7 +130,7 @@ atom *open_function(symbol *symbols, atom *atoms) {
     return NIL;
   
   int o = open(string, flags);
+  free(string);
+  free_atom(atoms);
   return data_to_atom(int_to_data(o));
 }
-
-

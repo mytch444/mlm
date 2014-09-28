@@ -117,6 +117,28 @@ void swap_symbols(symbol *symbols, atom *atoms) {
   }
 }
 
+void free_atom(atom *a) {
+  if (!a)
+    return;
+  if (a->next)
+    free_atom(a->next);
+
+  free(a->d);
+  free_atom(a->s);
+  free_function(a->f);
+  free(a->sym);
+  free(a);
+}
+
+void free_function(function *f) {
+  if (!f)
+    return;
+  free_atom(f->args);
+  free_atom(f->atoms);
+  free_atom(f->function);
+  free(f);
+}
+
 atom *data_to_atom(data *d) {
   atom *a = malloc(sizeof(atom));
   a->d = d;
@@ -193,7 +215,8 @@ atom *string_to_atom_string(char *string) {
   
   a = malloc(sizeof(atom));
   a->d = NULL;
-  a->s = malloc(sizeof(atom));
+  a->s = NIL;
+  a->s->next = NIL;
   a->f = NULL;
   a->sym = NULL;
   a->next = NULL;
@@ -209,13 +232,8 @@ atom *string_to_atom_string(char *string) {
     t->s = NULL;
     t->f = NULL;
     t->sym = NULL;
-    t->next = malloc(sizeof(atom));
+    t->next = NIL;
     t = t->next;
-    t->d = NULL;
-    t->f = NULL;
-    t->s = NULL;
-    t->sym = NULL;
-    t->next = NULL;
   }
 
   return a;
@@ -428,22 +446,18 @@ atom *evaluate(symbol *symbols, atom *atoms) {
     }
 
     if (atoms->f->flat) {
-      //      printf("flattening\n");
       a = flatten(symbols, args);
     } else
       a = args;
       
     if (atoms->f->c_function) {
       if (atoms->f->accept_dirty || isclean(a)) {
-	//	printf("c_ing\n");
 	r = atoms->f->c_function(symbols, a);
       } else {
-	//	printf("too dirty\n");
 	atoms->next = a;
 	r = atoms;
       }
     } else {
-      //      printf("lisping\n");
       r = do_lisp_function(symbols, atoms, a);
     }
 
@@ -484,7 +498,8 @@ char *atom_to_string(atom *a) {
     strcpy(copy, result);
     sprintf(result, "%s %s", copy, next);
   }
-  
+
+  free_atom(a);
   return result;
 }
 
@@ -506,6 +521,7 @@ atom *do_sub(symbol *symbols, atom *a) {
   }
 
   r->next = a->next;
+  free_atom(a);
   return r;
 }
 
@@ -579,7 +595,10 @@ void repl(symbol *symbols, FILE *in, int print) {
       break;
 
     result = evaluate(symbols, parsed);
+    free_atom(parsed);
     if (print)
       printf("%s\n", atom_to_string(result));
+
+    free_atom(result);
   }
 }
