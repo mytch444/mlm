@@ -1,28 +1,39 @@
 int exit_repl;
-symbol *symbols;
 
-#define SPECIAL_CHARS_N 5
+#define SPECIAL_CHARS_N 6
 special_char SPECIAL_CHARS[SPECIAL_CHARS_N] = {
   {'n', '\n'},
   {'t', '\t'},
   {'\\', '\\'},
   {'\'', '\''},
   {'\"', '\"'},
+  {'0', '\0'},
 };
 
 #include "builtinfunctions.c"
 
-int closing_bracket_pos(char *string, int open) {
-  int i;
-  int brackets = 0;
-  for (i = open; string[i] != '\0'; i++) {
-    if (string[i] == '(') brackets++;
-    if (string[i] == ')') {
-      if (brackets == 1) return i;
-      else brackets--;
+int end_expression_pos(char *string, int c) {
+  if (string[c] == '\'' || string[c] == '\"' || string[c] == '(') {
+    int open, close, inquote, inchar;
+    open = close = inquote = inchar = 0;
+    while (string[c]) {
+      //      printf("doing stuff for '%c'\n", string[c]);
+      if (!inquote && string[c] == '\'' && (c == 0 || string[c - 1] != '\\')) inchar = !inchar;
+      else if(string[c] == '\"' && (c == 0 || string[c - 1] != '\\')) inquote = !inquote;
+      else if (string[c] == '(' && !inquote && !inchar) open++;
+      else if (string[c] == ')' && !inquote && !inchar) close++;
+      else if (iscomment(string[c]) && !inquote && !inchar) break;
+      c++;
+      
+      if (open == close && !inchar && !inquote)
+	return c;
     }
+  } else {
+    while (string[c] && ischar(string[c]))
+      c++;
+    return c;
   }
-  
+
   return -1;
 }
 
@@ -62,9 +73,12 @@ int string_is_float(char *string) {
 
 int string_is_char(char *string) {
   int i;
-  if (string[0] == '\'' && string[2] == '\'')
-    return 1;
-  return 0;
+  if (string[0] != '\'')
+    return 0;
+  for (i = 1; string[i] && string[i + 1]; i++);
+  if (string[i] != '\'')
+    return 0;
+  return 1;
 }
 
 int string_is_string(char *string) {
@@ -75,7 +89,7 @@ int string_is_string(char *string) {
   return 0;
 }
 
-symbol *find_symbol(char *name) {
+symbol *find_symbol(symbol *symbols, char *name) {
   symbol *s;
   for (s = symbols; s; s = s->next) {
     if (strcmp(s->name, name) == 0) {
@@ -86,21 +100,21 @@ symbol *find_symbol(char *name) {
   return NULL;
 }
 
-atom *swap_symbols(atom *atoms) {
-  atom *a, *s;
+void swap_symbols(symbol *symbols, atom *atoms) {
+  atom *a;
+  symbol *sym;
   for (a = atoms; a; a = a->next) {
-    if (a->sym && a->sym->atoms) {
-      s = a->sym->atoms;
-      a->d = copy_data(s->d);
-      a->s = copy_atom(s->s);
-      a->f = copy_function(s->f);
+    if (a->sym) {
+      sym = find_symbol(symbols, a->sym);
+      if (!sym) {
+	continue;
+      }
+      a->d = copy_data(sym->atoms->d);
+      a->s = copy_atom(sym->atoms->s);
+      a->f = copy_function(sym->atoms->f);
       a->sym = NULL;
-    } else if (a->s) {
-      a->s = swap_symbols(a->s);
     }
   }
-
-  return atoms;
 }
 
 atom *data_to_atom(data *d) {
@@ -151,7 +165,14 @@ data *string_to_data(char *string) {
     return float_to_data(atof(string));
     
   } else if (string_is_char(string)) {
-    return char_to_data(string[1]);
+    char c;
+
+    if (string[1] == '\\')
+      c = get_special_char(string[2]);
+    else
+      c = string[1];
+    
+    return char_to_data(c);
     
   } else return NULL;
 }
@@ -200,6 +221,27 @@ atom *string_to_atom_string(char *string) {
   return a;
 }
 
+char *atom_string_to_string(atom *atoms) {
+  char *string;
+  atom *a;
+  int i;
+
+  if (!atoms || !atoms->s)
+    return NULL;
+  
+  for (i = 0, a = atoms->s; a; a = a->next, i++);
+  string = malloc(sizeof(char) * (i + 1));
+  
+  for (i = 0, a = atoms->s; a && a->next; a = a->next, i++) {
+    if (!a->d || a->d->type != CHAR)
+      return NULL;
+
+    string[i] = a->d->i;
+  }
+  string[i] = '\0';
+  return string;
+}
+
 atom *constant_to_atom(char *name) {
   atom *a; 
 
@@ -214,17 +256,7 @@ atom *constant_to_atom(char *name) {
   if (d) {
     a->d = d;
   } else {
-    symbol *s = find_symbol(name);
-    if (s) {
-      //      printf("found\n");
-      a->sym = s;
-    } else {
-      //      printf("making tmp\n");
-      a->sym = malloc(sizeof(symbol));
-      a->sym->name = name;
-      a->sym->atoms = NULL;
-      a->sym->next = NULL;
-    }
+    a->sym = name;
   }
 
   return a;
@@ -245,24 +277,24 @@ atom *parse(char *string) {
     if (!string[i])
       break;
     
-    if (string[i] == '\"' && (i == 0 || string[i - 1] != '\\')) {
+    if (string[i] == '\"') {
       start = i + 1;
-      for (i++; string[i] && string[i] != '\"'; i++)
-	if (string[i] == '\\')
-	  i++;
-      
-      i++;
-      if (start >= i)
+      i = end_expression_pos(string, i);
+      if (start > i) {
+	printf("COULD NOT FIND END OF EXPRESSION STARTING AT %i\n", i);
 	return NIL;
-
+      }
+      
       atoms->next = string_to_atom_string(string_cut(string, start, i - 1));
       atoms = atoms->next;
       num++;
     } else if (ischar(string[i])) {
       start = i;
-      for (; string[i] && ischar(string[i]); i++);
-      if (start >= i)
+      i = end_expression_pos(string, i);
+      if (start > i) {
+	printf("COULD NOT FIND END OF EXPRESSION STARTING AT %i\n", i);
 	return NIL;
+      }
       
       char *name = string_cut(string, start, i);
 
@@ -271,13 +303,13 @@ atom *parse(char *string) {
       num++;
     } else if (string[i] == '(') {
       start = i + 1;
-      end = closing_bracket_pos(string, start - 1);
-      if (start > end) {
-	printf("Error parsing\n");
+      i = end_expression_pos(string, i);
+      if (start > i) {
+	printf("COULD NOT FIND END OF EXPRESSION STARTING AT %i\n", i);
 	return NULL;
       }
       
-      atom *sub = parse(string_cut(string, start, end));
+      atom *sub = parse(string_cut(string, start, i - 1));
       
       if (sub) {
 	atoms->next = malloc(sizeof(atom));
@@ -297,13 +329,13 @@ atom *parse(char *string) {
       }
       
       num++;
-      i = end + 1;
     } else {
       printf("I have no idea what to do with this char '%c'\n", string[i]);
+      printf("Which was part of '%s'\n", string);
       return NULL;
     }
   }
-  
+
   return handle->next;
 }
 
@@ -353,16 +385,15 @@ atom *read_expression(FILE *in) {
   return parsed;
 }
 
-atom *evaluate(atom *raw) {
+atom *evaluate(symbol *symbols, atom *atoms) {
   int argc, i;
-  atom *atoms, *a, *r, *args;
+  atom *a, *r, *args;
 
-  atoms = swap_symbols(raw);
-  
+  swap_symbols(symbols, atoms);
   if (!atoms) return NIL;
   
   if (atoms->s)
-    atoms = do_sub(atoms);
+    atoms = do_sub(symbols, atoms);
 
   if (atoms->f) {
     if (!atoms->f->function && !atoms->f->c_function)
@@ -397,18 +428,23 @@ atom *evaluate(atom *raw) {
     }
 
     if (atoms->f->flat) {
-      a = flatten(args);
+      //      printf("flattening\n");
+      a = flatten(symbols, args);
     } else
       a = args;
       
     if (atoms->f->c_function) {
       if (atoms->f->accept_dirty || isclean(a)) {
-	r = atoms->f->c_function(a);
+	//	printf("c_ing\n");
+	r = atoms->f->c_function(symbols, a);
       } else {
-	r = a;
+	//	printf("too dirty\n");
+	atoms->next = a;
+	r = atoms;
       }
     } else {
-      r = do_lisp_function(atoms, a);
+      //      printf("lisping\n");
+      r = do_lisp_function(symbols, atoms, a);
     }
 
     return r;
@@ -433,24 +469,11 @@ char *atom_to_string(atom *a) {
       sprintf(result, "ERROR: What the fuck is this!");
     }
   } else if (a->s) {
-    atom *s;
-    int i;
-    for (i = 0, s = a->s; s && s->next; s = s->next, i++) {
-      if (!s->d || s->d->type != CHAR) {
-	result[0] = '\0';
-	break;
-      }
-
-      result[i] = s->d->i;
-    }
-
-    if (!result[0])
-      sprintf(result, "(%s)", atom_to_string(a->s));
-    
+    sprintf(result, "(%s)", atom_to_string(a->s));
   } else if (a->f) {
     sprintf(result, "f");
   } else if (a->sym) {
-    sprintf(result, "`%s`", a->sym->name);
+    sprintf(result, "`%s`", a->sym);
   } else {
     sprintf(result, "()");
   }
@@ -465,10 +488,10 @@ char *atom_to_string(atom *a) {
   return result;
 }
 
-atom *do_sub(atom *a) {
+atom *do_sub(symbol *symbols, atom *a) {
   if (!a || !a->s) return a;
   atom *r = malloc(sizeof(atom));
-  atom *s = evaluate(a->s);
+  atom *s = evaluate(symbols, a->s);
   
   if (s->next) {
     r->sym = NULL;
@@ -486,29 +509,26 @@ atom *do_sub(atom *a) {
   return r;
 }
 
-atom *flatten(atom *o) {
-  atom *a;
-
-  if (o->s)
-    o = do_sub(o);
-
-  for (a = o; a && a->next; a = a->next)
-    if (a->next->s) {
-      a->next = do_sub(a->next);
-    } else if (a->next->sym) {
-      printf("WHY THE FUCK IS THERE A SYMBOL HERE!!!\n\n");
+atom *flatten(symbol *symbols, atom *o) {
+  atom *a, *prev;
+  prev = NULL;
+  for (a = o; a && a->next; prev = a, a = a->next) {
+    if (a->s) {
+      a = do_sub(symbols, a);
+      if (prev)
+	prev->next = a;
+      else
+	o = a;
     }
+  }
 
   return o;
 }
 
 int isclean(atom *a) {
   for (; a; a = a->next)
-    if (a->sym && !a->sym->atoms) {
+    if (a->sym)
       return 0;
-    } else if (a->s)
-      if (!isclean(a->s))
-	return 0;
   return 1;
 }
 
@@ -548,7 +568,7 @@ atom *copy_atom(atom *a) {
   return b;
 }
 
-void repl(FILE *in, int print) {
+void repl(symbol *symbols, FILE *in, int print) {
   atom *parsed, *result;
 
   while (!exit_repl) {
@@ -558,7 +578,7 @@ void repl(FILE *in, int print) {
     if (!parsed)
       break;
 
-    result = evaluate(parsed);
+    result = evaluate(symbols, parsed);
     if (print)
       printf("%s\n", atom_to_string(result));
   }

@@ -21,7 +21,7 @@ typedef struct data data;
 typedef struct built_in_function built_in_function;
 struct built_in_function {
   char *name;
-  atom *(*function)(atom *atoms);
+  atom *(*function)(symbol *symbols, atom *atoms);
   int accept_dirty, flat;
   int argc;
 };
@@ -31,7 +31,7 @@ struct function {
   int argc;
   atom *atoms;
   atom *function;
-  atom *(*c_function)(atom *atoms);
+  atom *(*c_function)(symbol *symbols, atom *atoms);
   int accept_dirty, flat;
 };
 
@@ -52,7 +52,7 @@ struct atom {
   data *d;
   atom *s;
   function *f;
-  symbol *sym;
+  char *sym;
 };
 
 typedef struct special_char special_char;
@@ -70,7 +70,7 @@ atom *nil_atom() {
   return n;
 }
 
-int closing_bracket_pos(char *string, int open);
+int end_expression_pos(char *string, int c);
 char *string_cut(char *string, int start, int stop);
 
 int string_is_int(char *string);
@@ -78,8 +78,8 @@ int string_is_float(char *string);
 int string_is_char(char *string);
 int string_is_string(char *string);
 
-symbol *find_symbol(char *name);
-atom *swap_symbols(atom *atoms);
+symbol *find_symbol(symbol *symbols, char *name);
+void swap_symbols(symbol *symbols, atom *atoms);
 
 atom *data_to_atom(data *d);
 
@@ -90,22 +90,23 @@ data *float_to_data(double f);
 data *string_to_data(char *string);
 
 int get_special_char(int c);
+char *atom_string_to_string(atom *atoms);
 atom *string_to_atom_string(char *string);
 atom *constant_to_atom(char *name);
 
 atom *parse(char *string);
 atom *read_expression(FILE *f);
 
-atom *evaluate(atom *raw);
+atom *evaluate(symbol *symbols, atom *raw);
 
 atom *copy_atom(atom *a);
 function *copy_function(function *f);
 data *copy_data(data *a);
 int isclean(atom *a);
-atom *flatten(atom *o);
-atom *do_sub(atom *a);
+atom *flatten(symbol *symbols, atom *o);
+atom *do_sub(symbol *symbols, atom *a);
 char *atom_to_string(atom *a);
 
-void repl(FILE *in, int print);
+void repl(symbol *symbols, FILE *in, int print);
 
 #include "builtinfunctions.h"

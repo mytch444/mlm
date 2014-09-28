@@ -1,46 +1,46 @@
-#define init_built_in_functions() init_functions(built_in_functions, BUILT_IN_FUNCTIONS_N)
+#define init_built_in_functions(symbols) init_functions(symbols, built_in_functions, BUILT_IN_FUNCTIONS_N)
 
-atom *add_function(atom *a);
-atom *sub_function(atom *a);
-atom *mul_function(atom *a);
-atom *div_function(atom *a);
-atom *less_than_function(atom *atoms);
-atom *greater_than_function(atom *atoms);
+atom *add_function(symbol *symbols, atom *a);
+atom *sub_function(symbol *symbols, atom *a);
+atom *mul_function(symbol *symbols, atom *a);
+atom *div_function(symbol *symbols, atom *a);
+atom *less_than_function(symbol *symbols, atom *atoms);
+atom *greater_than_function(symbol *symbols, atom *atoms);
 
-atom *is_int(atom *a);
-atom *is_float(atom *a);
-atom *is_char(atom *a);
+atom *is_int(symbol *symbols, atom *a);
+atom *is_float(symbol *symbols, atom *a);
+atom *is_char(symbol *symbols, atom *a);
 
-atom *to_int(atom *a);
-atom *to_float(atom *a);
-atom *to_char(atom *a);  
+atom *to_int(symbol *symbols, atom *a);
+atom *to_float(symbol *symbols, atom *a);
+atom *to_char(symbol *symbols, atom *a);  
 
-atom *equal_function(atom *atoms);
+atom *equal_function(symbol *symbols, atom *atoms);
 
-atom *is_list(atom *a);
-atom *is_nil(atom *a);
-atom *list_function(atom *atoms);
-atom *cons_function(atom *atoms);
-atom *car_function(atom *atoms);
-atom *cdr_function(atom *atoms);
+atom *is_list(symbol *symbols, atom *a);
+atom *is_nil(symbol *symbols, atom *a);
+atom *list_function(symbol *symbols, atom *atoms);
+atom *cons_function(symbol *symbols, atom *atoms);
+atom *car_function(symbol *symbols, atom *atoms);
+atom *cdr_function(symbol *symbols, atom *atoms);
 
-atom *cond_function(atom *atoms);
+atom *cond_function(symbol *symbols, atom *atoms);
 
-atom *lambda_function(atom *atoms);
-atom *define_function(atom *atoms);
+atom *lambda_function(symbol *symbols, atom *atoms);
+atom *define_function(symbol *symbols, atom *atoms);
 
-atom *exit_function(atom *atoms);
-atom *progn_function(atom *atoms);
+atom *exit_function(symbol *symbols, atom *atoms);
+atom *progn_function(symbol *symbols, atom *atoms);
 
-atom *eval_function(atom *atoms);
+atom *eval_function(symbol *symbols, atom *atoms);
+atom *include_function(symbol *symbols, atom *atoms);
 
-atom *do_lisp_function(atom *fa, atom *atoms);
+atom *do_lisp_function(symbol *symbols, atom *fa, atom *atoms);
 atom *swap_in_args(atom *func, atom *args, atom *atoms);
-atom *update_symbols(atom *atoms);
 
-void init_functions(struct built_in_function functions[], int fn);
+symbol *init_functions(symbol *symbols, struct built_in_function functions[], int fn);
 
-#define BUILT_IN_FUNCTIONS_N 25
+#define BUILT_IN_FUNCTIONS_N 26
 built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
   // name, function, accept_dirty, flat, argc.
   {"+", add_function, 0, 1, 3},
@@ -75,4 +75,5 @@ built_in_function built_in_functions[BUILT_IN_FUNCTIONS_N] = {
   {"progn", progn_function, 0, 0, -1},
 
   {"eval", eval_function, 0, 1, 2},
+  {"include", include_function, 0, 1, 2},
 };

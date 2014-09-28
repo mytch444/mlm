@@ -1,5 +1,5 @@
-atom *print_function(atom *atoms) {
-  atom *ca, *a, *r, *copy;
+atom *print_function(symbol *symbols, atom *atoms) {
+  atom *ca, *a, *r, *copy, *cs;
   char string[1000], c, n, *sub;
   int i, j;
 
@@ -45,7 +45,19 @@ atom *print_function(atom *atoms) {
       } else if (n == 'c') {
 	sub = malloc(sizeof(char) * (1 + copy->d->i / 10));
 	sprintf(sub, "%c", copy->d->i);	
-      } else if (n == 's' || n == 'l') {
+      } else if (n == 's') {
+	for (j = 0, cs = copy->s; cs; cs = cs->next, j++);
+	sub = malloc(sizeof(char) * (j + 1));
+	for (j = 0, cs = copy->s; cs; cs = cs->next, j++) {
+	  if (!cs->d && !cs->s && !cs->f)
+	    break;
+	  if (cs->d->type != CHAR) {
+	    printf("BAD FORMATTING!\n");
+	    return NIL;
+	  }
+	  sub[j] = cs->d->i;
+	}
+      } else if (n == 'l') {
 	sub = atom_to_string(copy);
       } else {
 	printf("Bad formatting at %i, %c not recognised!\n", i, n);
@@ -69,12 +81,54 @@ atom *print_function(atom *atoms) {
   return NIL;
 }
 
-atom *read_function(atom *atoms) {
-  char line[1000];
-  int i;
-  fgets(line, sizeof(char) * 1000, stdin);
-  for (i = 0; line[i] && line[i] != '\n'; i++);
-  line[i] = '\0';
+atom *read_function(symbol *symbols, atom *atoms) {
+  ssize_t size;
+  size_t c;
+  char *buf, *b, end;
+  int fd, max;
 
-  return string_to_atom_string(line);
+  if (!atoms || !atoms->d || atoms->d->type != INT ||
+      !atoms->next || !atoms->next->d || atoms->next->d->type != INT ||
+      !atoms->next->next || !atoms->next->next->d || atoms->next->next->d->type != CHAR)
+    return NIL;
+
+  fd = atoms->d->i;
+  max = atoms->next->d->i;
+  end = atoms->next->next->d->i;
+  c = sizeof(char) * max;
+  buf = malloc(c);
+  b = buf;
+
+  while (1) {
+    if (!read(fd, b, sizeof(char)))
+      return NIL;
+    if (!b || *b == end)
+      break;
+    b++;
+  }
+  
+
+  return string_to_atom_string(buf);
 }
+
+atom *open_function(symbol *symbols, atom *atoms) {
+  if (!atoms || !atoms->s || !atoms->next || !atoms->next->s)
+    return NIL;
+  
+  char *string = atom_string_to_string(atoms);
+  char *flag_string = atom_string_to_string(atoms->next);
+  int flags;
+  if (!strcmp(flag_string, "r"))
+    flags = O_RDONLY;
+  else if (!strcmp(flag_string, "w"))
+    flags = O_WRONLY;
+  else if (!strcmp(flag_string, "rw"))
+    flags = O_RDWR;
+  else
+    return NIL;
+  
+  int o = open(string, flags);
+  return data_to_atom(int_to_data(o));
+}
+
+

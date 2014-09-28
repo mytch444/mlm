@@ -1,30 +1,24 @@
 ; Just some functions for doing stuff. Run
-; ./mlmi funcs.l
+; ./mlmi lisp/funcs.l
 ; To load them into the interperater then you can use these.
 ; Also checkout test.l
 
 (define else
   1)
 
-(define t
-  1)
-
-(define f
-  ())
-
 (define >=
   (\ (a b)
    (cond
-    ((= a b) t)
-    ((> a b) t)
-    (else f))))
+    ((= a b) 1)
+    ((> a b) 1)
+    (else ()))))
 
 (define <=
   (\ (a b)
    (cond
-    ((= a b) t)
-    ((< a b) t)
-    (else f))))
+    ((= a b) 1)
+    ((< a b) 1)
+    (else ()))))
 
 (define 1+
   (\ (a)
@@ -64,8 +58,8 @@
 
 (define not
   (\ (a)
-   (cond ((nil? a) t)
-	 (else f))))
+   (cond ((nil? a) 1)
+	 (else ()))))
 
 (define !=
   (\ (a b)
@@ -75,16 +69,16 @@
   (\ (a b)
    (cond
     (a (cond
-	(b t)
-	(else f)))
-    (else f))))
+	(b 1)
+	(else ())))
+    (else ()))))
 
 (define or
   (\ (a b)
    (cond
-    (a t)
-    (b t)
-    (else f))))
+    (a 1)
+    (b 1)
+    (else ()))))
 
 (define char-to-upper
   (\ (c)

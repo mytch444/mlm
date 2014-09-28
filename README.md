@@ -4,8 +4,8 @@ mlm
 My lisp interpreter.
 
 A simple (ok, it's probably an overly complicated, not functional piece of shit) lisp interpreter.
-It's currently being developed.
-It will eventually use my own dialect of lisp that takes some influences from haskel.
+It's currently being developed. It is being made in such a way that is should be easy to use for adding lisp scripting to something. Like what emacs does. Not sure how to explain that.
+It will uses my own dialect of lisp that takes some influences from haskel.
 
 No idea what I'll use it for.
 
@@ -15,7 +15,7 @@ Language
 ========
 
 Everything is an atom.
-An atom is either a function, data, a list or a symbol (which may or may not be assigned to anything). I cannot be more than one of these. It is structured like this. 
+An atom is either a function, data, a list or a symbol. I cannot be more than one of these. It is structured like this. 
 
 atom - next -> another atom (next in the list)
      - data
@@ -62,7 +62,9 @@ Name, number of arguments, explanation.
       "cdr", 1, returns next from list.
 
       "exit", 0, exits the interperater.
+
       "eval", 1, evaluates the expression in the string given to it.
+      "include", 1, reads and evaluates the file given to it as a string.
 
       -- These will be explained. 
       "cond", 1+, explained later.
@@ -99,17 +101,7 @@ Lambda
 Use:
 	(\ (a) (* a a))
 
-Lambda takes two arguments, the first is a list of functions that shouldn't be associated with anything (make up a new fucking name, I'll get a better description later) and the second which is an expression that uses the arguments to return a value. So the above returns a function that when given a single argument returns that argument squared.
-
-NOTE
-====
-It should be noted, that due to my infinite stupidity, one cannot have local variables override global ones. So if you define f to b () then don't go making a map function that has f for the arg that is the function to be mapped, as it will be () before it gets to lambda and will consequently give you crap when you try use it.
-
-I am sorry. I am a fool.
-
-And fixing this will either require some fucking around and ruining the perfect equallity of the functions, or something genius. If I feel smart this may be fixed.
-END OF VERY IMPORTANT NOTE
-==========================
+Lambda takes two arguments, the first is a list of symbols and the second which is an expression that uses the arguments to return a value. So the above returns a function that when given a single argument returns that argument squared.
 
 Print
 =====
@@ -146,6 +138,7 @@ An example:
 (map (\ (a) (+ a 1)) (1 2 3))
 
 "hello" is syntactic sugar for ('h' 'e' 'l' 'l' 'o' ()).
+
 Other than that it's pretty much lisp. Or scheme, probably more similar to scheme.
 
 The files funcs.l and test.l are probably better examples of code. They work.
@@ -153,10 +146,12 @@ You can load them into the interpreter by giving them as arguments when you run 
 
 Interpretter
 ============
-The interpreter is a c program that takes input, evaluates and prints the result.
+The interpreter is the executable mlmi binary that magically shows up when you run make. Or is probably already there due to my lazyness, you'll probably want to run make before trying to use it depending on your archecture.
+It is a c program that takes input, evaluates and prints the result.
 
 You can give it files to evaluate by just giving them to it as arguments.
 
 It can read multi line expressions and will only execute on enter if there are an equal number of open and close brackets and not as part of a quote.
 
 There may at some point be a compiler. I recon that would be pretty cool.
+
