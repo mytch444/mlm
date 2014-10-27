@@ -109,7 +109,6 @@ atom *read_function(symbol *symbols, atom *atoms) {
   }
  
   r = string_to_atom_string(buf);
-  free(buf);
   return r;
 }
 
@@ -130,7 +129,5 @@ atom *open_function(symbol *symbols, atom *atoms) {
     return NIL;
   
   int o = open(string, flags);
-  free(string);
-  free_atom(atoms);
   return data_to_atom(int_to_data(o));
 }

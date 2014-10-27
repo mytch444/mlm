@@ -220,7 +220,7 @@ atom *is_nil(symbol *symbols, atom *a) {
 }
 
 atom *list_function(symbol *symbols, atom *atoms) {
-  return atoms;
+  return copy_atom(atoms);
 }
 
 atom *cons_function(symbol *symbols, atom *atoms) {
@@ -319,8 +319,8 @@ atom *define_function(symbol *symbols, atom *atoms) {
     s->next->next = NULL;
   }
   
-  s->next->name = name;
-  s->next->atoms = atoms;
+  s->next->name = copy_string(name);
+  s->next->atoms = copy_atom(atoms);
 
   return TRUE;
 }
@@ -347,7 +347,11 @@ atom *include_function(symbol *symbols, atom *atoms) {
     return NIL;
   
   f = fopen(filename, "r");
-
+  if (!f) {
+    printf("COULD NOT INCLUDE FILE: %s\n", filename);
+    return NIL;
+  }
+  
   repl(symbols, f, 0);
 
   return TRUE;

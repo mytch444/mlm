@@ -81,9 +81,6 @@ int string_is_string(char *string);
 symbol *find_symbol(symbol *symbols, char *name);
 void swap_symbols(symbol *symbols, atom *atoms);
 
-void free_atom(atom *a);
-void free_function(function *f);
-
 atom *data_to_atom(data *d);
 
 data *char_to_data(char c);
@@ -102,9 +99,11 @@ atom *read_expression(FILE *f);
 
 atom *evaluate(symbol *symbols, atom *raw);
 
+char *copy_string(char *string);
 atom *copy_atom(atom *a);
-function *copy_function(function *f);
 data *copy_data(data *a);
+function *copy_function(function *f);
+
 int isclean(atom *a);
 atom *flatten(symbol *symbols, atom *o);
 atom *do_sub(symbol *symbols, atom *a);

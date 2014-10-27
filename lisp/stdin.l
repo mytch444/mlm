@@ -1,3 +1,5 @@
+(include "iofuncs.l")
+
 (define main
   (\ (stdin)
    (progn (print "Enter something:")

@@ -120,7 +120,7 @@ Use:
 		(print "How are you today")
 		(print "Who cares about functional things"))
 
-Ignores everything about functional and just evaluates each of the expressions given to it in set then returns 1.
+Ignores everything functional and just evaluates each of the expressions given to it in order then returns 1.
 
 Syntax
 ======

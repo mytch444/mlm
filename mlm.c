@@ -117,28 +117,6 @@ void swap_symbols(symbol *symbols, atom *atoms) {
   }
 }
 
-void free_atom(atom *a) {
-  if (!a)
-    return;
-  if (a->next)
-    free_atom(a->next);
-
-  free(a->d);
-  free_atom(a->s);
-  free_function(a->f);
-  free(a->sym);
-  free(a);
-}
-
-void free_function(function *f) {
-  if (!f)
-    return;
-  free_atom(f->args);
-  free_atom(f->atoms);
-  free_atom(f->function);
-  free(f);
-}
-
 atom *data_to_atom(data *d) {
   atom *a = malloc(sizeof(atom));
   a->d = d;
@@ -257,24 +235,20 @@ char *atom_string_to_string(atom *atoms) {
     string[i] = a->d->i;
   }
   string[i] = '\0';
+
   return string;
 }
 
 atom *constant_to_atom(char *name) {
   atom *a; 
 
-  a = malloc(sizeof(atom));
-  a->d = NULL;
-  a->s = NULL;
-  a->f = NULL;
-  a->sym = NULL;
-  a->next = NULL;
+  a = NIL;
 
   data *d = string_to_data(name);
   if (d) {
     a->d = d;
   } else {
-    a->sym = name;
+    a->sym = copy_string(name);
   }
 
   return a;
@@ -408,15 +382,14 @@ atom *evaluate(symbol *symbols, atom *atoms) {
   atom *a, *r, *args;
 
   swap_symbols(symbols, atoms);
-  if (!atoms) return NIL;
+  
+  if (!atoms)
+    return NIL;
   
   if (atoms->s)
     atoms = do_sub(symbols, atoms);
 
   if (atoms->f) {
-    if (!atoms->f->function && !atoms->f->c_function)
-      return atoms;
-
     args = atoms->f->atoms;
     for (a = args; a && a->next; a = a->next);
     if (a)
@@ -427,17 +400,7 @@ atom *evaluate(symbol *symbols, atom *atoms) {
     argc = atoms->f->argc;
     for (i = 0, a = args; a; a = a->next, i++);
     
-    if (argc > 0 && i > argc) {
-      printf("too many arguments: %i > %i\n", i, argc);
-      atom *prev = NULL;
-      for (i = 0, a = args; a; prev = a, a = a->next, i++) {
-	if (i >= argc) {
-	  prev->next = NULL;
-	  break;
-	}
-      }
-
-    } else if (i < argc || (argc < 0 && i < -argc)) {
+    if (i < argc || (argc < 0 && i < -argc)) {
       printf("Not enough arguments: %i < %i\n", i, argc);
       atoms->f->atoms = args;
       atoms->next = NULL;
@@ -499,7 +462,6 @@ char *atom_to_string(atom *a) {
     sprintf(result, "%s %s", copy, next);
   }
 
-  free_atom(a);
   return result;
 }
 
@@ -521,7 +483,6 @@ atom *do_sub(symbol *symbols, atom *a) {
   }
 
   r->next = a->next;
-  free_atom(a);
   return r;
 }
 
@@ -546,6 +507,16 @@ int isclean(atom *a) {
     if (a->sym)
       return 0;
   return 1;
+}
+
+char *copy_string(char *string) {
+  int l;
+  for (l = 0; string[l]; l++);
+  char *n = malloc(sizeof(char) * (l + 1));
+  for (l = 0; string[l]; l++)
+    n[l] = string[l];
+  n[l] = '\0';
+  return n;
 }
 
 data *copy_data(data *a) {
@@ -595,10 +566,7 @@ void repl(symbol *symbols, FILE *in, int print) {
       break;
 
     result = evaluate(symbols, parsed);
-    free_atom(parsed);
     if (print)
       printf("%s\n", atom_to_string(result));
-
-    free_atom(result);
   }
 }

@@ -8,4 +8,4 @@
 
 (define readln
   (\ (f)
-   (cut-trailing-newline (read f 1000 '\n'))))
+   (cut-trailing-newline (read f 100 '\n'))))
