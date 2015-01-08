@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
 
   char **defaults = malloc(sizeof(char*) * 3);
   defaults[0] = NULL;
-  defaults[1] = "lisp/funcs.l";
+  defaults[1] = "/usr/lib/mlm/funcs.l";
   defaults[2] = NULL;
   
   read_files(symbols, 2, defaults);
