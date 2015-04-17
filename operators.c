@@ -223,7 +223,8 @@ void operator_lambda(struct thing * r, struct thing * args, struct variable * va
 
 void operator_include(struct thing * r, struct thing * args, struct variable * variables)
 {
-	char * filename = "stdlib.lisp";
+	if (args->car->type != LST) die("ERROR bad arguments for include");
+	char * filename = char_list_to_string(args->car);
 	int fd = open(filename, O_RDONLY);
 	if (fd < 0) die("FAILED TO OPEN INCLUDE");
 	struct thing * s = malloc(sizeof(struct thing));

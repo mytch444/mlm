@@ -46,6 +46,7 @@ void copy_thing(struct thing * n, struct thing * o);
 
 struct thing * eval_thing(struct thing * thing, struct variable * variables);
 
+char * char_list_to_string(struct thing * thing);
 void print_thing(struct thing * thing);
 char * forward_section(char * str);
 struct thing * parse_string(char * str);

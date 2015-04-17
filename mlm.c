@@ -184,6 +184,21 @@ givecopy:
 	return r;
 }
 
+char * char_list_to_string(struct thing * thing)
+{
+	struct thing * t;
+	int l = 1;
+	for (t = thing; t->type == LST; t = t->cdr) l++;
+	char * str = malloc(sizeof(char) * l);
+	
+	l = 0;
+	for (t = thing; t->type == LST; t = t->cdr)
+		str[l++] = (char) t->car->value;
+	str[l] = '\0';	
+	
+	return str;
+}
+
 void print_thing(struct thing * thing)
 {
 	switch (thing->type) {
@@ -232,31 +247,31 @@ char * forward_section(char * str)
 struct thing * parse_string(char * str)
 {
 	char *c, tmp;
-	struct thing * root, * thing = malloc(sizeof(struct thing));
+	struct thing * t, * thing = malloc(sizeof(struct thing));
 	thing->type = NIL;
 	if (*str == '(')
 	{ /* parse list */
 		c = ++str;
-		root = thing;
-		while (*c && *c != ')')
+		t = thing;
+		while (*c)
 		{
 			for (str = c; IS_SPACE(*str); str++);
 			if (*str == ')') break;
 			c = forward_section(str);
 			tmp = *c;
 			*c = '\0';
-			thing->cdr = malloc(sizeof(struct thing));
-			thing = thing->cdr;
-			thing->type = LST;
-			thing->car = parse_string(str);
+			t->cdr = malloc(sizeof(struct thing));
+			t = t->cdr;
+			t->type = LST;
+			t->car = parse_string(str);
 			*c = tmp;
 		}
 		
-		thing->cdr = malloc(sizeof(struct thing));
-		thing->cdr->type = NIL;
-		thing = root->cdr;
-		/* don't free everthing inside root */
-		free(root);
+		t->cdr = malloc(sizeof(struct thing));
+		t->cdr->type = NIL;
+		t = thing;
+		thing = t->cdr;
+		free(t);
 		
 	} else if (*str == '\'')
 	{ /* parse char */
@@ -265,6 +280,19 @@ struct thing * parse_string(char * str)
 		*c = '\0';
 		thing->value = *str;
 		/* TODO; work with escape codes and unicode? */
+	} else if (*str == '\"')
+	{ /* parse string */
+		t = thing;
+		for (c = ++str; *c != '\"'; c++)
+		{
+			t->type = LST;
+			t->car = malloc(sizeof(struct thing));
+			t->car->type = CHR;
+			t->car->value = *c;
+			t->cdr = malloc(sizeof(struct thing));
+			t = t->cdr;
+		}
+		t->type = NIL;
 	} else if (*str >= '0' && *str <= '9'
 		|| *str == '.'
 		|| (*str == '-' && strlen(str) > 1))
@@ -308,7 +336,7 @@ struct thing * parse_file(int fd, struct thing * state, struct variable * variab
 		c = str;
 		str = buf;
 		while (*str && IS_SPACE(*str)) str++;
-		if (!*str) break;
+		if (!*str) continue;
 		
 		free_thing(state);
 		parsed = parse_string(str);
