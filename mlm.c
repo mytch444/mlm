@@ -6,10 +6,12 @@
 #include "mlm.h"
 #include "operators.c"
 
-#define N_FUNCTIONS 11
+#define N_FUNCTIONS 13
 struct operator operators[N_FUNCTIONS] = {
 	{ "+", &operator_add },
 	{ "-", &operator_sub },
+	{ "*", &operator_mul },
+	{ "/", &operator_div },
 	{ "=", &operator_equal },
 	{ ">", &operator_greater },
 	{ "is", &operator_is },
@@ -21,6 +23,12 @@ struct operator operators[N_FUNCTIONS] = {
 	{ "\\", &operator_lambda },
 };
 
+void die(char * mes)
+{
+	fprintf(stderr, "%s\n", mes);
+	exit(EXIT_FAILURE);
+}
+
 int thing_equivalent(struct thing * a, struct thing * b)
 {
 	struct thing * x, * y;
@@ -28,8 +36,8 @@ int thing_equivalent(struct thing * a, struct thing * b)
 	switch (a->type)
 	{
 	case CHR:
-	case INT: return a->value == b->value;
-	case DBL: return a->point == b->point;
+	case INT: return (int) a->value == (int) b->value;
+	case FLT: return a->value == b->value;
 	case SYM: return !strcmp(a->label, b->label);
 	case LST: 
 		for (x = a->car, y = b->car; 
@@ -42,12 +50,29 @@ int thing_equivalent(struct thing * a, struct thing * b)
 
 void free_thing(struct thing * thing)
 {
-	if (thing->type == LST)
-	{	
+	switch (thing->type)
+	{
+	case LST:
 		free_thing(thing->car);
 		free_thing(thing->cdr);
-	} else if (thing->type == SYM)
+		break;
+	case SYM:
 		free(thing->label);
+		break;
+	case FNC:
+/*		free_thing(thing->function->thing);
+		struct variable *o, * v = thing->function->variables;
+		while (v)
+		{
+			o = v;
+			v = v->next;
+			free(o->label);
+			free(o);
+		}
+		free(thing->function);
+			*/
+		break;
+	}
 	
 	free(thing);
 }
@@ -58,8 +83,8 @@ void copy_thing(struct thing * n, struct thing * o)
 	switch (n->type)
 	{
 	case CHR:
+	case FLT:
 	case INT: n->value = o->value; break;
-	case DBL: n->point = o->point; break;
 	case LST:
 		n->car = malloc(sizeof(struct thing));
 		n->cdr = malloc(sizeof(struct thing));
@@ -69,6 +94,31 @@ void copy_thing(struct thing * n, struct thing * o)
 	case SYM:
 		n->label = malloc(sizeof(char) * (strlen(o->label) + 1));
 		strcpy(n->label, o->label);
+		break;
+	case FNC:
+		n->function = malloc(sizeof(struct function));
+		n->function->thing = malloc(sizeof(struct thing));
+		copy_thing(n->function->thing, o->function->thing);
+		
+		struct variable * w, * v = o->function->variables;
+		if (v)
+			w = n->function->variables = malloc(sizeof(struct variable));
+		else w = n->function->variables = NULL;
+		for (; v; v = v->next)
+		{
+			w->label = malloc(sizeof(char) * (strlen(v->label) + 1));
+			strcpy(w->label, v->label);
+			printf("copied var %s\n", w->label);
+			w->thing = NULL;
+			if (v->next)
+				w->next = malloc(sizeof(struct variable));
+			else w->next = NULL;
+			w = w->next;
+		}
+		
+		for (v = n->function->variables; v; v = v->next)
+			printf("have copied %s\n", v->label);
+
 		break;
 	}
 }
@@ -81,42 +131,58 @@ struct thing * eval_thing(struct thing * thing, struct variable * variables)
 	r->type = NIL;
 	if (thing->type == LST)
 	{
+		t = malloc(sizeof(struct thing));
+		copy_thing(t, thing);
 		do
-			thing->car = eval_thing(thing->car, variables);
-		while (thing->car->type == LST && thing->car->car->type == SYM);
+		{
+			thing = t->car;
+			t->car = eval_thing(t->car, variables);
+			free_thing(thing);
+		} while (t->car->type == LST && t->car->car->type == SYM);
 
-		if (thing->car->type == SYM)
+		if (t->car->type == SYM)
 		{
 			for (i = 0; i < N_FUNCTIONS; i++)
 			{
-				if (strcmp(thing->car->label, operators[i].label) == 0)
+				if (strcmp(t->car->label, operators[i].label) == 0)
 				{
-					operators[i].func(r, thing->cdr, variables);
+					operators[i].func(r, t->cdr, variables);
+					free_thing(t);
 					return r;
 				}
 			}
 			
-			fprintf(stderr, "%s undefined.\n", thing->car->label);
-			exit(EXIT_FAILURE);
-		} else if (thing->car->type == FNC)
+			die("symbol not defined!");
+		} else if (t->car->type == FNC)
 		{
-			t = thing;
+			printf("evaling func\n");
+			thing = t;
 			for (v = t->car->function->variables; v; v = v->next)
 			{
 				t = t->cdr;
-				if (t->type != LST) break;
-				v->thing = t->car;
+				printf("setting %s to: \n    ", v->label);
+				if (v->thing) die("how?\n");
+				if (t->type == LST) v->thing = eval_thing(t->car, variables);
+				else die("ERROR not enough arguments for lambda function!");
+				print_thing(v->thing);
+				printf("\n");
 				if (!v->next) break;
 			}
 			v->next = variables;
 			
-			thing = eval_thing(thing->car->function->thing, thing->car->function->variables);
+			copy_thing(r, thing->car->function->thing);
+			
+			t = eval_thing(r, thing->car->function->variables);
+			
 			v->next = NULL;
+			free_thing(thing);
+			return t;
 		}
 	} else if (thing->type == SYM)
 	{
+		printf("tying to sub %s\n", thing->label);
 		for (v = variables; v; v = v->next)
-			if (strcmp(v->label, thing->label) == 0) { thing = v->thing; break; }
+			if (strcmp(v->label, thing->label) == 0) { printf("found match\n"); thing = v->thing; break; }
 	}
 
 givecopy:
@@ -127,19 +193,18 @@ givecopy:
 
 void print_thing(struct thing * thing)
 {
-	switch (thing->type)
-	{
+	switch (thing->type) {
 	case NIL: 
 		printf("()");
 		break;
 	case INT: 
-		printf("%i", thing->value);
+		printf("%i", (int) thing->value);
 		break;
 	case CHR: 
-		printf("%c", thing->value);
+		printf("%c", (int) thing->value);
 		break;
-	case DBL:
-		printf("%f", thing->point);
+	case FLT:
+		printf("%f", thing->value);
 		break;
 	case LST:
 		printf("(");
@@ -150,6 +215,9 @@ void print_thing(struct thing * thing)
 		break;
 	case SYM:
 		printf("%s", thing->label);
+		break;
+	case FNC:
+		printf("lambda");
 		break;
 	}
 }
@@ -193,7 +261,7 @@ struct thing * parse_string(char * str)
 		thing->cdr = malloc(sizeof(struct thing));
 		thing->cdr->type = NIL;
 		thing = root->cdr;
-		/* don't want it to free everthing inside root */
+		/* don't free everthing inside root */
 		free(root);
 		
 	} else if (*str == '\'')
@@ -208,9 +276,9 @@ struct thing * parse_string(char * str)
 		|| (*str == '-' && strlen(str) > 1))
 	{ /* parse number */
 		thing->type = INT;
-		for (c = str; *c; c++) if (*c == '.') thing->type = DBL;
+		for (c = str; *c; c++) if (*c == '.') thing->type = FLT;
 		if (thing->type == INT) thing->value = atoi(str);
-		else thing->point = atof(str);
+		else thing->value = atof(str);
 	} else
 	{ /* function? */
 		thing->type = SYM;
@@ -233,10 +301,7 @@ int main(int argc, char *argv[])
 	state->type = NIL;
 
 	variables = malloc(sizeof(struct variable));
-	variables->label = "mol";
-	variables->thing = malloc(sizeof(struct thing));
-	variables->thing->type = INT;
-	variables->thing->value = 42;
+	variables->label = "";
 	variables->next = NULL;
 	
 	count = read(0, buf, sizeof(buf));
@@ -254,10 +319,16 @@ int main(int argc, char *argv[])
 		if (c - buf >= count) break;
 		tmp = *c;
 		*c = '\0';
+		
 		free_thing(state);
 		parsed = parse_string(str);
+		
 		state = eval_thing(parsed, variables);
+		printf("EVAL: ");
+		print_thing(state);
+		printf("\n");
 		free_thing(parsed);
+		
 		*c = tmp;
 		str = c;
 	}

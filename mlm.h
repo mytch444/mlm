@@ -1,9 +1,9 @@
 #define NIL 0
 #define INT 1
-#define CHR 2
-#define LST 3
-#define SYM 4
-#define DBL 5
+#define FLT 2
+#define CHR 3
+#define LST 4
+#define SYM 5
 #define FNC 6
 
 #define IS_SPACE(X) (X == '\n' || X == '\t' || X == '\r' || X == ' ')
@@ -17,8 +17,7 @@ struct function
 struct thing
 {
 	int type;
-	int value;
-	double point;
+	float value;
 	char * label;
 	struct thing * car;
 	struct thing * cdr;
@@ -40,6 +39,7 @@ struct operator
 	             struct variable * variables);
 };
 
+void die(char * mes);
 int thing_equivalent(struct thing * a, struct thing * b);
 void free_thing(struct thing * thing);
 void copy_thing(struct thing * n, struct thing * o);

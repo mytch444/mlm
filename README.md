@@ -31,7 +31,7 @@ function:
 	special type that is created with lambda (\). 
 
 char's and int's can generally be interchanged except for equality comparisons 
-(greater than will work) as the type is compared before anything else.
+(greater than will work) as the type is compared before anything else. 
 
 opperators
 ----------
@@ -39,9 +39,13 @@ opperators
 these are the build in functions.
 
 (+ n n)
-	takes any number of args, takes type of first.
+	takes any number of args, takes type of last.
 (- n n)
-	take any number of args, take type of first.
+	take any number of args, take type of last.
+(* n n)
+	works the same as -
+(/ n n)
+	wors the same as -
 (= a b)
 	works with all types.
 (> a b)
@@ -82,8 +86,8 @@ function when it should be an int or something like that.
 the state is the return value of the last block.
 on exit prints state.
 
-'a' -> ascii value of a
-"abc" -> ('a' 'b' 'c') ; TODO.
+	'a' -> ascii value of a
+	"abc" -> ('a' 'b' 'c') ; TODO.
 
 when evaulating.
 if thing is list and list->car is a symbol or evaluates to a symbol/function
@@ -95,3 +99,4 @@ opperator found then we give rest of list to opperator and return its return
 value. if it was a symbol which was subsituted with a function we give the 
 rest of the list to the function.
 
+you will need to have a last new line on your files.
