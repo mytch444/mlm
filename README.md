@@ -1,7 +1,8 @@
 mlm
 ===
 
-rebuilt
+lisp interpretter.
+takes lisp expressions from stdin, parses and evaluates.
 
 types
 -----
@@ -9,19 +10,25 @@ types
 each atom stores its type. the type is set when the atom is parsed at 
 the begining. types are set by the following rules.
 
-list:	if the first character is '(' it will read to the corrosponding
+list:
+	if the first character is '(' it will read to the corrosponding
 	closing bracket and break it apart.
-char:	first character is a single quote ('), currently there are no
+char:
+	first character is a single quote ('), currently there are no
 	escape codes or unicode support. escape codes will happen. 
 	unicode might happen.
-int:	if the string starts with '-' (and has a length greater than 1)
+int:
+	if the string starts with '-' (and has a length greater than 1)
 	, '0' through to '9' or '.' it is considered to be an integer 
 	unless it has a '.' then it becomes a double. atoi and atof rules
 	apply for parsing.
-double:	read above.
-symbol:	anything that is not one of the above. it's name is stored for
+double:	
+	read above.
+symbol:	
+	anything that is not one of the above. it's name is stored for
 	latter interchanging functions, values or opperators.
-function: special type that is created with lambda (\). 
+function: 
+	special type that is created with lambda (\). 
 
 char's and int's can generally be interchanged except for equality comparisons 
 (greater than will work) as the type is compared before anything else.
@@ -31,11 +38,16 @@ opperators
 
 these are the build in functions.
 
-(+ n n) ; takes any number of args, takes type of first.
-(- n n) ; take any number of args, take type of first.
-(= a b) ; works with all types.
-(> a b) ; behavior with functions is undefined.
-(is a b) ; returns () if a is not the same type as b. takes any number of args.
+(+ n n)
+	takes any number of args, takes type of first.
+(- n n)
+	take any number of args, take type of first.
+(= a b)
+	works with all types.
+(> a b)
+	behavior with functions is undefined.
+(is a b)
+	returns () if a is not the same type as b. takes any number of args.
 (car l)
 (cdr l)
 (cons thing thing)
@@ -50,7 +62,7 @@ these are the build in functions.
 these are also built in functions but i felt they should be seperate.
 
 (exec path arg1 arg2)
-(read match) ; reads stdin until match
+(read match)
 (print list)
 (error list)
 
