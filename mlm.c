@@ -1,572 +1,268 @@
-int exit_repl;
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
-#define SPECIAL_CHARS_N 6
-special_char SPECIAL_CHARS[SPECIAL_CHARS_N] = {
-  {'n', '\n'},
-  {'t', '\t'},
-  {'\\', '\\'},
-  {'\'', '\''},
-  {'\"', '\"'},
-  {'0', '\0'},
+#include "mlm.h"
+#include "operators.c"
+
+#define N_FUNCTIONS 11
+struct operator operators[N_FUNCTIONS] = {
+	{ "+", &operator_add },
+	{ "-", &operator_sub },
+	{ "=", &operator_equal },
+	{ ">", &operator_greater },
+	{ "is", &operator_is },
+	{ "car", &operator_car },
+	{ "cdr", &operator_cdr },
+	{ "cons", &operator_cons },
+	{ "cond", &operator_cond },
+	{ "def", &operator_define },
+	{ "\\", &operator_lambda },
 };
 
-#include "builtinfunctions.c"
-
-int end_expression_pos(char *string, int c) {
-  if (string[c] == '\'' || string[c] == '\"' || string[c] == '(') {
-    int open, close, inquote, inchar;
-    open = close = inquote = inchar = 0;
-    while (string[c]) {
-      //      printf("doing stuff for '%c'\n", string[c]);
-      if (!inquote && string[c] == '\'' && (c == 0 || string[c - 1] != '\\')) inchar = !inchar;
-      else if(string[c] == '\"' && (c == 0 || string[c - 1] != '\\')) inquote = !inquote;
-      else if (string[c] == '(' && !inquote && !inchar) open++;
-      else if (string[c] == ')' && !inquote && !inchar) close++;
-      else if (iscomment(string[c]) && !inquote && !inchar) break;
-      c++;
-      
-      if (open == close && !inchar && !inquote)
-	return c;
-    }
-  } else {
-    while (string[c] && ischar(string[c]))
-      c++;
-    return c;
-  }
-
-  return -1;
+int thing_equivalent(struct thing * a, struct thing * b)
+{
+	struct thing * x, * y;
+	if (a->type != b->type) return 0;
+	switch (a->type)
+	{
+	case CHR:
+	case INT: return a->value == b->value;
+	case DBL: return a->point == b->point;
+	case SYM: return !strcmp(a->label, b->label);
+	case LST: 
+		for (x = a->car, y = b->car; 
+			thing_equivalent(x, y);
+			x = x->cdr, y = y->cdr);
+		return x->type == NIL && y->type == NIL;
+	default: return 1;
+	}
 }
 
-char *string_cut(char *string, int start, int stop) {
-  int i;
-  char *new = malloc(sizeof(char) * (stop - start + 1));
-  for (i = 0; i < stop - start; i++) new[i] = string[start + i];
-  new[i] = '\0';
-  return new;
-}
-
-int string_is_int(char *string) {
-  int i = 0;
-  if (string[i] == '-' && string[i + 1])
-    i++;
-  for (; string[i]; i++)
-    if (!(string[i] >= '0' && string[i] <= '9'))
-      return 0;
-  return 1;
-}
-
-int string_is_float(char *string) {
-  int i = 0;
-  int point = 0;
-  if (string[i] == '-' && string[i + 1])
-    i++;
-  for (; string[i]; i++) {
-    if (string[i] == '.' && !point) {
-      point = 1;
-      continue;
-    }
-    if (!(string[i] >= '0' && string[i] <= '9'))
-      return 0;
-  }
-  return 1;
-}
-
-int string_is_char(char *string) {
-  int i;
-  if (string[0] != '\'')
-    return 0;
-  for (i = 1; string[i] && string[i + 1]; i++);
-  if (string[i] != '\'')
-    return 0;
-  return 1;
-}
-
-int string_is_string(char *string) {
-  int i;
-  for (i = 0; string[i] && string[i + 1]; i++);
-  if (string[0] == '\"' && string[i] == '\"')
-    return 1;
-  return 0;
-}
-
-symbol *find_symbol(symbol *symbols, char *name) {
-  symbol *s;
-  for (s = symbols; s; s = s->next) {
-    if (strcmp(s->name, name) == 0) {
-      return s;
-    }
-  }
-
-  return NULL;
-}
-
-void swap_symbols(symbol *symbols, atom *atoms) {
-  atom *a;
-  symbol *sym;
-  for (a = atoms; a; a = a->next) {
-    if (a->sym) {
-      sym = find_symbol(symbols, a->sym);
-      if (!sym) {
-	continue;
-      }
-      a->d = copy_data(sym->atoms->d);
-      a->s = copy_atom(sym->atoms->s);
-      a->f = copy_function(sym->atoms->f);
-      a->sym = NULL;
-    }
-  }
-}
-
-atom *data_to_atom(data *d) {
-  atom *a = malloc(sizeof(atom));
-  a->d = d;
-  a->s = NULL;
-  a->f = NULL;
-  a->sym = NULL;
-  a->next = NULL;
-  return a;
-}
-
-data *char_to_data(char c) {
-  data *d = malloc(sizeof(data));
-  
-  d->type = CHAR;
-  d->i = c;
-  d->f = 0;
-  
-  return d;
-}
-
-data *int_to_data(int i) {
-  data *d = malloc(sizeof(data));
-  
-  d->type = INT;
-  d->i = i;
-  d->f = 0;
-  
-  return d;
-}
-
-data *float_to_data(double f) {
-  data *d = malloc(sizeof(data));
-  
-  d->type = FLOAT;
-  d->f = f;
-  d->i = 0;
-  
-  return d;
-}
-
-data *string_to_data(char *string) {
-  if (string_is_int(string)) {
-    return int_to_data(atoi(string));
-    
-  } else if (string_is_float(string)) {
-    return float_to_data(atof(string));
-    
-  } else if (string_is_char(string)) {
-    char c;
-
-    if (string[1] == '\\')
-      c = get_special_char(string[2]);
-    else
-      c = string[1];
-    
-    return char_to_data(c);
-    
-  } else return NULL;
-}
-
-int get_special_char(int c) {
-  int i;
-  for (i = 0; i < SPECIAL_CHARS_N; i++) {
-    if (c == SPECIAL_CHARS[i].c)
-      return SPECIAL_CHARS[i].s;
-  }
-
-  return c;
-}
-
-atom *string_to_atom_string(char *string) {
-  atom *a, *t;
-  int j, c;
-  
-  a = malloc(sizeof(atom));
-  a->d = NULL;
-  a->s = NIL;
-  a->s->next = NIL;
-  a->f = NULL;
-  a->sym = NULL;
-  a->next = NULL;
-
-  t = a->s;
-  for (j = 0; string[j]; j++) {
-    if (string[j] == '\\')
-      c = get_special_char(string[++j]);
-    else
-      c = string[j];
-
-    t->d = char_to_data(c);
-    t->s = NULL;
-    t->f = NULL;
-    t->sym = NULL;
-    t->next = NIL;
-    t = t->next;
-  }
-
-  return a;
-}
-
-char *atom_string_to_string(atom *atoms) {
-  char *string;
-  atom *a;
-  int i;
-
-  if (!atoms || !atoms->s)
-    return NULL;
-  
-  for (i = 0, a = atoms->s; a; a = a->next, i++);
-  string = malloc(sizeof(char) * (i + 1));
-  
-  for (i = 0, a = atoms->s; a && a->next; a = a->next, i++) {
-    if (!a->d || a->d->type != CHAR)
-      return NULL;
-
-    string[i] = a->d->i;
-  }
-  string[i] = '\0';
-
-  return string;
-}
-
-atom *constant_to_atom(char *name) {
-  atom *a; 
-
-  a = NIL;
-
-  data *d = string_to_data(name);
-  if (d) {
-    a->d = d;
-  } else {
-    a->sym = copy_string(name);
-  }
-
-  return a;
-}
-
-atom *parse(char *string) {
-  int num, i, start, end, j;
-  atom *handle, *atoms, *t;
-  
-  handle = malloc(sizeof(atom));
-  handle->next = NULL;
-  atoms = handle;
-  num = 0;
-  i = 0;
-  while (string[i]) {
-    for (; string[i] && isspace(string[i]); i++);
-    
-    if (!string[i])
-      break;
-    
-    if (string[i] == '\"') {
-      start = i + 1;
-      i = end_expression_pos(string, i);
-      if (start > i) {
-	printf("COULD NOT FIND END OF EXPRESSION STARTING AT %i\n", i);
-	return NIL;
-      }
-      
-      atoms->next = string_to_atom_string(string_cut(string, start, i - 1));
-      atoms = atoms->next;
-      num++;
-    } else if (ischar(string[i])) {
-      start = i;
-      i = end_expression_pos(string, i);
-      if (start > i) {
-	printf("COULD NOT FIND END OF EXPRESSION STARTING AT %i\n", i);
-	return NIL;
-      }
-      
-      char *name = string_cut(string, start, i);
-
-      atoms->next = constant_to_atom(name);
-      atoms = atoms->next;
-      num++;
-    } else if (string[i] == '(') {
-      start = i + 1;
-      i = end_expression_pos(string, i);
-      if (start > i) {
-	printf("COULD NOT FIND END OF EXPRESSION STARTING AT %i\n", i);
-	return NULL;
-      }
-      
-      atom *sub = parse(string_cut(string, start, i - 1));
-      
-      if (sub) {
-	atoms->next = malloc(sizeof(atom));
-	atoms = atoms->next;
-	atoms->next = NULL;
-	atoms->d = NULL;
-	atoms->f = NULL;
-	atoms->sym = NULL;
-	atoms->s = sub;
+void free_thing(struct thing * thing)
+{
+	if (thing->type == LST)
+	{	
+		free_thing(thing->car);
+		free_thing(thing->cdr);
+	} else if (thing->type == SYM)
+		free(thing->label);
 	
-	atom *a;
-	for (a = atoms->s; a && a->next; a = a->next);
-	a->next = NIL;
-      } else {
-	atoms->next = NIL;
-	atoms = atoms->next;
-      }
-      
-      num++;
-    } else {
-      printf("I have no idea what to do with this char '%c'\n", string[i]);
-      printf("Which was part of '%s'\n", string);
-      return NULL;
-    }
-  }
-
-  return handle->next;
+	free(thing);
 }
 
-atom *read_expression(FILE *in) {
-  char line[500];
-  char string[5000];
-  atom *parsed;
-  int c, d, open, close, inquote, inchar;
-    
-  d = c = open = close = inquote = inchar = 0;
-  string[0] = '\0';
-  line[0] = '\0';
-    
-  do {
-    while (!line[c] || isspace(line[c])) {
-      if (!fgets(line, sizeof(char) * 500, in))
-	return NULL;
-
-      for (c = 0; line[c] && isspace(line[c]); c++);
-      if (!line[c]) {
-	continue;
-      }
-    }
-    
-    for (c = 0; line[c]; c++) {
-      if (!inquote && line[c] == '\'' && (c == 0 || line[c - 1] != '\\')) inchar = !inchar;
-      else if(line[c] == '\"' && (c == 0 || line[c - 1] != '\\')) inquote = !inquote;
-      else if (line[c] == '(' && !inquote && !inchar) open++;
-      else if (line[c] == ')' && !inquote && !inchar) close++;
-      else if (iscomment(line[c]) && !inquote && !inchar) break;
-
-      string[d + c] = line[c];
-    }
-
-    d += c;
-    string[d] = '\0';
-    
-  } while (open != close || inquote || inchar);
-  
-  for (c = 0; string[c] && string[c + 1]; c++);
-  if (c == 0)
-    return read_expression(in);
-  else if (string[c] == '\n')
-    string[c] = '\0';
-
-  parsed = parse(string);
-  return parsed;
+void copy_thing(struct thing * n, struct thing * o)
+{
+	n->type = o->type;
+	switch (n->type)
+	{
+	case CHR:
+	case INT: n->value = o->value; break;
+	case DBL: n->point = o->point; break;
+	case LST:
+		n->car = malloc(sizeof(struct thing));
+		n->cdr = malloc(sizeof(struct thing));
+		copy_thing(n->car, o->car);
+		copy_thing(n->cdr, o->cdr);
+		break;
+	case SYM:
+		n->label = malloc(sizeof(char) * (strlen(o->label) + 1));
+		strcpy(n->label, o->label);
+		break;
+	}
 }
 
-atom *evaluate(symbol *symbols, atom *atoms) {
-  int argc, i;
-  atom *a, *r, *args;
+struct thing * eval_thing(struct thing * thing, struct variable * variables)
+{
+	int i;
+	struct variable * v;
+	struct thing * t, * r = malloc(sizeof(struct thing));
+	r->type = NIL;
+	if (thing->type == LST)
+	{
+		do
+			thing->car = eval_thing(thing->car, variables);
+		while (thing->car->type == LST && thing->car->car->type == SYM);
 
-  swap_symbols(symbols, atoms);
-  
-  if (!atoms)
-    return NIL;
-  
-  if (atoms->s)
-    atoms = do_sub(symbols, atoms);
+		if (thing->car->type == SYM)
+		{
+			for (i = 0; i < N_FUNCTIONS; i++)
+			{
+				if (strcmp(thing->car->label, operators[i].label) == 0)
+				{
+					operators[i].func(r, thing->cdr, variables);
+					return r;
+				}
+			}
+			
+			fprintf(stderr, "%s undefined.\n", thing->car->label);
+			exit(EXIT_FAILURE);
+		} else if (thing->car->type == FNC)
+		{
+			t = thing;
+			for (v = t->car->function->variables; v; v = v->next)
+			{
+				t = t->cdr;
+				if (t->type != LST) break;
+				v->thing = t->car;
+				if (!v->next) break;
+			}
+			v->next = variables;
+			
+			thing = eval_thing(thing->car->function->thing, thing->car->function->variables);
+			v->next = NULL;
+		}
+	} else if (thing->type == SYM)
+	{
+		for (v = variables; v; v = v->next)
+			if (strcmp(v->label, thing->label) == 0) { thing = v->thing; break; }
+	}
 
-  if (atoms->f) {
-    args = atoms->f->atoms;
-    for (a = args; a && a->next; a = a->next);
-    if (a)
-      a->next = atoms->next;
-    else
-      args = atoms->next;
-
-    argc = atoms->f->argc;
-    for (i = 0, a = args; a; a = a->next, i++);
-    
-    if (i < argc || (argc < 0 && i < -argc)) {
-      printf("Not enough arguments: %i < %i\n", i, argc);
-      atoms->f->atoms = args;
-      atoms->next = NULL;
-
-      return atoms;
-    }
-
-    if (atoms->f->flat) {
-      a = flatten(symbols, args);
-    } else
-      a = args;
-      
-    if (atoms->f->c_function) {
-      if (atoms->f->accept_dirty || isclean(a)) {
-	r = atoms->f->c_function(symbols, a);
-      } else {
-	atoms->next = a;
-	r = atoms;
-      }
-    } else {
-      r = do_lisp_function(symbols, atoms, a);
-    }
-
-    return r;
-  } else
-    return atoms;
+givecopy:
+	copy_thing(r, thing);
+	
+	return r;
 }
 
-char *atom_to_string(atom *a) {
-  char *result = malloc(sizeof(char) * 1000);
-  result[0] = '\0';
-  
-  if (!a)
-    return "";
-  if (a->d) {
-    if (a->d->type == INT) {
-      sprintf(result, "%i", a->d->i);
-    } else if (a->d->type == FLOAT) {
-      sprintf(result, "%g", a->d->f);
-    } else if (a->d->type == CHAR) {
-      sprintf(result, "'%c'", a->d->i);
-    } else {
-      sprintf(result, "ERROR: What the fuck is this!");
-    }
-  } else if (a->s) {
-    sprintf(result, "(%s)", atom_to_string(a->s));
-  } else if (a->f) {
-    sprintf(result, "f");
-  } else if (a->sym) {
-    sprintf(result, "`%s`", a->sym);
-  } else {
-    sprintf(result, "()");
-  }
-  
-  if (a->next) {
-    char *next = atom_to_string(a->next);
-    char *copy = malloc(sizeof(char) * 1000);
-    strcpy(copy, result);
-    sprintf(result, "%s %s", copy, next);
-  }
-
-  return result;
+void print_thing(struct thing * thing)
+{
+	switch (thing->type)
+	{
+	case NIL: 
+		printf("()");
+		break;
+	case INT: 
+		printf("%i", thing->value);
+		break;
+	case CHR: 
+		printf("%c", thing->value);
+		break;
+	case DBL:
+		printf("%f", thing->point);
+		break;
+	case LST:
+		printf("(");
+		print_thing(thing->car);
+		printf(" ");
+		print_thing(thing->cdr);
+		printf(")");
+		break;
+	case SYM:
+		printf("%s", thing->label);
+		break;
+	}
 }
 
-atom *do_sub(symbol *symbols, atom *a) {
-  if (!a || !a->s) return a;
-  atom *r = malloc(sizeof(atom));
-  atom *s = evaluate(symbols, a->s);
-  
-  if (s->next) {
-    r->sym = NULL;
-    r->d = NULL;
-    r->f = NULL;
-    r->s = s;
-  } else {
-    r->sym = s->sym;
-    r->d = s->d;
-    r->s = s->s;
-    r->f = s->f;
-  }
-
-  r->next = a->next;
-  return r;
+char * forward_section(char * str)
+{
+	int b = 0;
+	if (*str == '(')
+	{
+		for (; *str && !(!b && *(str-1) == ')'); str++)
+		{
+			if (*str == '(') b++;
+			if (*str == ')') b--;
+		}
+	} else for (; *str && *str != ')' && !IS_SPACE(*str); str++);
+	return str;
 }
 
-atom *flatten(symbol *symbols, atom *o) {
-  atom *a, *prev;
-  prev = NULL;
-  for (a = o; a && a->next; prev = a, a = a->next) {
-    if (a->s) {
-      a = do_sub(symbols, a);
-      if (prev)
-	prev->next = a;
-      else
-	o = a;
-    }
-  }
-
-  return o;
+struct thing * parse_string(char * str)
+{
+	char *c, tmp;
+	struct thing * root, * thing = malloc(sizeof(struct thing));
+	if (*str == '(')
+	{ /* parse list */
+		c = ++str;
+		root = thing;
+		while (*c && *c != ')')
+		{
+			for (str = c; IS_SPACE(*str); str++);
+			if (*str == ')') break;
+			c = forward_section(str);
+			tmp = *c;
+			*c = '\0';
+			thing->cdr = malloc(sizeof(struct thing));
+			thing = thing->cdr;
+			thing->type = LST;
+			thing->car = parse_string(str);
+			*c = tmp;
+		}
+		
+		thing->cdr = malloc(sizeof(struct thing));
+		thing->cdr->type = NIL;
+		thing = root->cdr;
+		/* don't want it to free everthing inside root */
+		free(root);
+		
+	} else if (*str == '\'')
+	{ /* parse char */
+		thing->type = CHR;
+		for (c = ++str; *c && *c != '\''; c++);
+		*c = '\0';
+		thing->value = *str;
+		/* TODO; work with escape codes and unicode? */
+	} else if (*str >= '0' && *str <= '9'
+		|| *str == '.'
+		|| (*str == '-' && strlen(str) > 1))
+	{ /* parse number */
+		thing->type = INT;
+		for (c = str; *c; c++) if (*c == '.') thing->type = DBL;
+		if (thing->type == INT) thing->value = atoi(str);
+		else thing->point = atof(str);
+	} else
+	{ /* function? */
+		thing->type = SYM;
+		thing->label = malloc(sizeof(char) * (strlen(str) + 1));
+		strcpy(thing->label, str);
+	}
+	
+	return thing;
 }
 
-int isclean(atom *a) {
-  for (; a; a = a->next)
-    if (a->sym)
-      return 0;
-  return 1;
-}
+int main(int argc, char *argv[])
+{
+	int i;
+	char *str, *c, tmp;
+	char buf[512];
+	ssize_t count;
+	struct thing * parsed, * state;
+	struct variable * variables;
+	state = malloc(sizeof(struct thing));
+	state->type = NIL;
 
-char *copy_string(char *string) {
-  int l;
-  for (l = 0; string[l]; l++);
-  char *n = malloc(sizeof(char) * (l + 1));
-  for (l = 0; string[l]; l++)
-    n[l] = string[l];
-  n[l] = '\0';
-  return n;
-}
-
-data *copy_data(data *a) {
-  if (!a) return NULL;
-  data *b = malloc(sizeof(data));
-  b->type = a->type;
-  b->i = a->i;
-  b->f = a->f;
-  return b;
-}
-
-function *copy_function(function *f) {
-  if (!f) return NULL;
-  function *r;
-  r = malloc(sizeof(function));
-
-  r->args = copy_atom(f->args);
-  r->argc = f->argc;
-  r->atoms = copy_atom(f->atoms);
-  r->function = copy_atom(f->function);
-  r->c_function = f->c_function;
-  r->accept_dirty = f->accept_dirty;
-  r->flat = f->flat;
-
-  return r;
-}
-
-atom *copy_atom(atom *a) {
-  if (!a) return NULL;
-  atom *b = malloc(sizeof(atom));
-  b->d = copy_data(a->d);
-  b->s = copy_atom(a->s);
-  b->f = copy_function(a->f);
-  b->sym = a->sym;
-  b->next = copy_atom(a->next);
-  return b;
-}
-
-void repl(symbol *symbols, FILE *in, int print) {
-  atom *parsed, *result;
-
-  while (!exit_repl) {
-    if (print) printf("-> ");
-    
-    parsed = read_expression(in);
-    if (!parsed)
-      break;
-
-    result = evaluate(symbols, parsed);
-    if (print)
-      printf("%s\n", atom_to_string(result));
-  }
+	variables = malloc(sizeof(struct variable));
+	variables->label = "mol";
+	variables->thing = malloc(sizeof(struct thing));
+	variables->thing->type = INT;
+	variables->thing->value = 42;
+	variables->next = NULL;
+	
+	count = read(0, buf, sizeof(buf));
+	if (count == -1)
+	{
+		printf("read error: %i\n", errno);
+		return EXIT_FAILURE;
+	}
+	
+	str = c = buf;
+	while (1)
+	{
+		while (*str && IS_SPACE(*str)) str++;
+		c = forward_section(str);
+		if (c - buf >= count) break;
+		tmp = *c;
+		*c = '\0';
+		free_thing(state);
+		parsed = parse_string(str);
+		state = eval_thing(parsed, variables);
+		free_thing(parsed);
+		*c = tmp;
+		str = c;
+	}
+	
+	print_thing(state);
+	printf("\n");
+	return EXIT_SUCCESS;
 }
