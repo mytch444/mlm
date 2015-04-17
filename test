@@ -1,5 +1,0 @@
-(def abs (\ a (cond
-		((> 0 a) (- 0 a))
-		(else a))))
-
-(abs 4)

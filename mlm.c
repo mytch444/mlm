@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <fcntl.h>
 
 #include "mlm.h"
 #include "operators.c"
 
-#define N_FUNCTIONS 13
+#define N_FUNCTIONS 14
 struct operator operators[N_FUNCTIONS] = {
 	{ "+", &operator_add },
 	{ "-", &operator_sub },
@@ -21,6 +21,7 @@ struct operator operators[N_FUNCTIONS] = {
 	{ "cond", &operator_cond },
 	{ "def", &operator_define },
 	{ "\\", &operator_lambda },
+	{ "include", &operator_include },
 };
 
 void die(char * mes)
@@ -108,7 +109,6 @@ void copy_thing(struct thing * n, struct thing * o)
 		{
 			w->label = malloc(sizeof(char) * (strlen(v->label) + 1));
 			strcpy(w->label, v->label);
-			printf("copied var %s\n", w->label);
 			w->thing = NULL;
 			if (v->next)
 				w->next = malloc(sizeof(struct variable));
@@ -116,9 +116,6 @@ void copy_thing(struct thing * n, struct thing * o)
 			w = w->next;
 		}
 		
-		for (v = n->function->variables; v; v = v->next)
-			printf("have copied %s\n", v->label);
-
 		break;
 	}
 }
@@ -152,20 +149,17 @@ struct thing * eval_thing(struct thing * thing, struct variable * variables)
 				}
 			}
 			
+			printf("%s\n", t->car->label);
 			die("symbol not defined!");
 		} else if (t->car->type == FNC)
 		{
-			printf("evaling func\n");
 			thing = t;
 			for (v = t->car->function->variables; v; v = v->next)
 			{
 				t = t->cdr;
-				printf("setting %s to: \n    ", v->label);
 				if (v->thing) die("how?\n");
 				if (t->type == LST) v->thing = eval_thing(t->car, variables);
 				else die("ERROR not enough arguments for lambda function!");
-				print_thing(v->thing);
-				printf("\n");
 				if (!v->next) break;
 			}
 			v->next = variables;
@@ -177,12 +171,11 @@ struct thing * eval_thing(struct thing * thing, struct variable * variables)
 			v->next = NULL;
 			free_thing(thing);
 			return t;
-		}
+		} else return t;
 	} else if (thing->type == SYM)
 	{
-		printf("tying to sub %s\n", thing->label);
 		for (v = variables; v; v = v->next)
-			if (strcmp(v->label, thing->label) == 0) { printf("found match\n"); thing = v->thing; break; }
+			if (strcmp(v->label, thing->label) == 0) { thing = v->thing; break; }
 	}
 
 givecopy:
@@ -240,6 +233,7 @@ struct thing * parse_string(char * str)
 {
 	char *c, tmp;
 	struct thing * root, * thing = malloc(sizeof(struct thing));
+	thing->type = NIL;
 	if (*str == '(')
 	{ /* parse list */
 		c = ++str;
@@ -289,13 +283,47 @@ struct thing * parse_string(char * str)
 	return thing;
 }
 
-int main(int argc, char *argv[])
+struct thing * parse_file(int fd, struct thing * state, struct variable * variables)
 {
 	int i;
+	ssize_t count = 1;
 	char *str, *c, tmp;
 	char buf[512];
-	ssize_t count;
-	struct thing * parsed, * state;
+	struct thing * parsed;
+
+	while (count)
+	{
+		str = buf;
+		i = 0;
+		do {
+			count = read(fd, str, sizeof(char));
+			if (count == 0) break;
+			if (count == -1) die("read error\n");
+			if (*str == '(') i++;
+			if (*str == ')') i--;
+			str++;
+		} while (!(*(str-1) == ')' && !i));
+		*str = '\0';
+		
+		c = str;
+		str = buf;
+		while (*str && IS_SPACE(*str)) str++;
+		if (!*str) break;
+		
+		free_thing(state);
+		parsed = parse_string(str);
+		state = eval_thing(parsed, variables);
+		
+		*c = tmp;
+		str = c;
+	}
+	
+	return state;
+}
+
+int main(int argc, char *argv[])
+{
+	struct thing * state;
 	struct variable * variables;
 	state = malloc(sizeof(struct thing));
 	state->type = NIL;
@@ -304,35 +332,8 @@ int main(int argc, char *argv[])
 	variables->label = "";
 	variables->next = NULL;
 	
-	count = read(0, buf, sizeof(buf));
-	if (count == -1)
-	{
-		printf("read error: %i\n", errno);
-		return EXIT_FAILURE;
-	}
-	
-	str = c = buf;
-	while (1)
-	{
-		while (*str && IS_SPACE(*str)) str++;
-		c = forward_section(str);
-		if (c - buf >= count) break;
-		tmp = *c;
-		*c = '\0';
+	state = parse_file(0, state, variables);
 		
-		free_thing(state);
-		parsed = parse_string(str);
-		
-		state = eval_thing(parsed, variables);
-		printf("EVAL: ");
-		print_thing(state);
-		printf("\n");
-		free_thing(parsed);
-		
-		*c = tmp;
-		str = c;
-	}
-	
 	print_thing(state);
 	printf("\n");
 	return EXIT_SUCCESS;

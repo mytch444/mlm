@@ -88,11 +88,6 @@ void operator_greater(struct thing * r, struct thing * args, struct variable * v
 	{
 		args = args->cdr;
 		a = eval_thing(args->car, variables);
-		printf("checking if '");
-		print_thing(a);
-		printf("' >= to ");
-		print_thing(first);
-		printf("\n");
 		if (a->value >= first->value)
 			r->type = NIL;
 		free_thing(a);
@@ -122,14 +117,20 @@ void operator_is(struct thing * r, struct thing * args, struct variable * variab
 
 void operator_car(struct thing *r, struct thing * args, struct variable * variables)
 {
-	if (args->type != LST || args->car->type != LST) die("ERROR car bad arguments!");
-	copy_thing(r, args->car->car);
+	if (args->type != LST) die("ERROR car arguments nil!");
+	struct thing * t = eval_thing(args->car, variables);
+	if (t->type != LST) die("ERROR car bad arguments!");
+	copy_thing(r, t->car);
+	free_thing(t);
 }
 
 void operator_cdr(struct thing *r, struct thing * args, struct variable * variables)
 {
-	if (args->type != LST || args->car->type != LST) die("ERROR cdr bad arguments!");
-	copy_thing(r, args->car->cdr);
+	if (args->type != LST) die("ERROR cdr arguments nil!");
+	struct thing * t = eval_thing(args->car, variables);
+	if (t->type != LST) die("ERROR cdr bad arguments!");
+	copy_thing(r, t->cdr);
+	free_thing(t);
 }
 
 void operator_cons(struct thing * r, struct thing * args, struct variable * variables)
@@ -209,7 +210,6 @@ void operator_lambda(struct thing * r, struct thing * args, struct variable * va
 			v->next = NULL;
 			v->label = malloc(sizeof(char) * (strlen(args->car->label) + 1));
 			strcpy(v->label, args->car->label);
-			printf("added var: %s\n", v->label);
 		} else
 			die("ERROR not a function or variable name!\n");
 	}
@@ -219,4 +219,16 @@ void operator_lambda(struct thing * r, struct thing * args, struct variable * va
 	v = r->function->variables;
 	r->function->variables = v->next;
 	free(v);
+}
+
+void operator_include(struct thing * r, struct thing * args, struct variable * variables)
+{
+	char * filename = "stdlib.lisp";
+	int fd = open(filename, O_RDONLY);
+	if (fd < 0) die("FAILED TO OPEN INCLUDE");
+	struct thing * s = malloc(sizeof(struct thing));
+	s->type = NIL;
+	s = parse_file(fd, s, variables);
+	copy_thing(r, s);
+	free_thing(s);
 }

@@ -62,6 +62,8 @@ these are the build in functions.
 	names of local variables. the result can be used like an 
 	operator. define it as something if you want.
 (cond (ifnotnil returnthis) (elseifnotnil returnthis))
+(include file)
+	parses file so adding any definitions and updating the state.
 
 these are also built in functions but i felt they should be seperate.
 

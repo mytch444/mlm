@@ -49,3 +49,4 @@ struct thing * eval_thing(struct thing * thing, struct variable * variables);
 void print_thing(struct thing * thing);
 char * forward_section(char * str);
 struct thing * parse_string(char * str);
+struct thing * parse_file(int fd, struct thing * state, struct variable * variables);
