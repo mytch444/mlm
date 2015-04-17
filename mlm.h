@@ -8,6 +8,12 @@
 
 #define IS_SPACE(X) (X == '\n' || X == '\t' || X == '\r' || X == ' ')
 
+#define N_PATHS 2
+char *library_paths[] = {
+	".",
+	"/usr/share/mlm",
+};
+
 struct function
 {
 	struct thing * thing;

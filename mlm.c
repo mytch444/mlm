@@ -7,7 +7,7 @@
 #include "operators.c"
 
 #define N_FUNCTIONS 14
-struct operator operators[N_FUNCTIONS] = {
+struct operator operators[] = {
 	{ "+", &operator_add },
 	{ "-", &operator_sub },
 	{ "*", &operator_mul },
@@ -45,6 +45,8 @@ int thing_equivalent(struct thing * a, struct thing * b)
 			thing_equivalent(x, y);
 			x = x->cdr, y = y->cdr);
 		return x->type == NIL && y->type == NIL;
+	case FNC: /* cannot be bothered */
+		return 0;
 	default: return 1;
 	}
 }
@@ -61,7 +63,7 @@ void free_thing(struct thing * thing)
 		free(thing->label);
 		break;
 	case FNC:
-/*		free_thing(thing->function->thing);
+		free_thing(thing->function->thing);
 		struct variable *o, * v = thing->function->variables;
 		while (v)
 		{
@@ -71,7 +73,6 @@ void free_thing(struct thing * thing)
 			free(o);
 		}
 		free(thing->function);
-			*/
 		break;
 	}
 	
@@ -173,14 +174,11 @@ struct thing * eval_thing(struct thing * thing, struct variable * variables)
 			return t;
 		} else return t;
 	} else if (thing->type == SYM)
-	{
 		for (v = variables; v; v = v->next)
-			if (strcmp(v->label, thing->label) == 0) { thing = v->thing; break; }
-	}
+			if (strcmp(v->label, thing->label) == 0) 
+				{ thing = v->thing; break; }
 
-givecopy:
 	copy_thing(r, thing);
-	
 	return r;
 }
 

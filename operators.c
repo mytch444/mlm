@@ -224,11 +224,21 @@ void operator_lambda(struct thing * r, struct thing * args, struct variable * va
 void operator_include(struct thing * r, struct thing * args, struct variable * variables)
 {
 	if (args->car->type != LST) die("ERROR bad arguments for include");
-	char * filename = char_list_to_string(args->car);
-	int fd = open(filename, O_RDONLY);
-	if (fd < 0) die("FAILED TO OPEN INCLUDE");
 	struct thing * s = malloc(sizeof(struct thing));
+	char * filename;
+	char path[512];
+	int fd, i;
 	s->type = NIL;
+	
+	filename = char_list_to_string(args->car); 
+	for (i = 0; i < N_PATHS; i++)
+	{
+		sprintf(path, "%s/%s", library_paths[i], filename);
+		if ((fd = open(path, O_RDONLY)) > 0)
+			break;
+	}
+	if (fd < 0) die("ERROR could not open include");
+	
 	s = parse_file(fd, s, variables);
 	copy_thing(r, s);
 	free_thing(s);

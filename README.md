@@ -1,44 +1,44 @@
-*mlm
+#mlm
 
 
 lisp interpretter.
 takes lisp expressions from stdin, parses and evaluates.
 
-**types
+##types
 
 
 each atom stores its type. the type is set when the atom is parsed at 
 the begining. types are set by the following rules.
 
-****list:
+####list:
 if the first character is '(' it will read to the corrosponding
 closing bracket and break it apart.
 
-****char:
+####char:
 first character is a single quote ('), currently there are no
 escape codes or unicode support. escape codes will happen. 
 unicode might happen.
 
-****int:
+#####int:
 if the string starts with '-' (and has a length greater than 1)
 , '0' through to '9' or '.' it is considered to be an integer 
 unless it has a '.' then it becomes a double. atoi and atof rules
 apply for parsing.
 
-****double:	
+####double:	
 read above.
 
-****symbol:	
+####symbol:	
 anything that is not one of the above. it's name is stored for
 latter interchanging functions, values or opperators.
 
-****function: 
+#####function: 
 special type that is created with lambda (\). 
 
 char's and int's can generally be interchanged except for equality comparisons 
 (greater than will work) as the type is compared before anything else. 
 
-**opperators
+##opperators
 
 these are the build in functions.
 
@@ -99,7 +99,7 @@ these are also built in functions but i felt they should be seperate.
 
 (error list)
 
-**notes
+##notes
 
 it is incredibly lazy. it will not evaluate something unless it absolutely 
 has too. this includes when printing. so you will probably get back unprocessed
