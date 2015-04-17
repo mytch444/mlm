@@ -6,7 +6,6 @@ takes lisp expressions from stdin, parses and evaluates.
 
 ##types
 
-
 each atom stores its type. the type is set when the atom is parsed at 
 the begining. types are set by the following rules.
 
@@ -84,12 +83,12 @@ adds/sets label to thing in list of available variables.
 last argument is the function, arguments before that are
 names of local variables. the result can be used like an 
 operator. define it as something if you want.
+
 (cond (ifnotnil returnthis) (elseifnotnil returnthis))
-(include file)
-	
-parses file so adding any definitions and updating the state.
 
 these are also built in functions but i felt they should be seperate.
+
+*Yet to impliment*
 
 (exec path arg1 arg2)
 
@@ -99,7 +98,25 @@ these are also built in functions but i felt they should be seperate.
 
 (error list)
 
+##bangs
+
+to include another file do.
+
+	#include stdlib.l
+
+this will include ./stdlib.l if it exists, if it doesn't /usr/share/mlm/stdlib.l
+if that fails then an error is printed and mlm exits.
+
+shebangs
+
+	#!/usr/bin/mlm
+
+are ignored so the above is fine to have. so yes. you can do that then exectute the
+file like a normal script.
+
 ##notes
+
+anything between a semicolor and end of line will be ignored.
 
 it is incredibly lazy. it will not evaluate something unless it absolutely 
 has too. this includes when printing. so you will probably get back unprocessed

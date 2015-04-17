@@ -1,0 +1,5 @@
+#!/usr/bin/mlm
+
+#include stdlib.l
+
+(pow 4 4) ; will not print as it is not the last thing.

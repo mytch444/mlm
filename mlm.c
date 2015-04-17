@@ -6,7 +6,7 @@
 #include "mlm.h"
 #include "operators.c"
 
-#define N_FUNCTIONS 14
+#define N_FUNCTIONS 13
 struct operator operators[] = {
 	{ "+", &operator_add },
 	{ "-", &operator_sub },
@@ -21,7 +21,6 @@ struct operator operators[] = {
 	{ "cond", &operator_cond },
 	{ "def", &operator_define },
 	{ "\\", &operator_lambda },
-	{ "include", &operator_include },
 };
 
 void die(char * mes)
@@ -63,7 +62,7 @@ void free_thing(struct thing * thing)
 		free(thing->label);
 		break;
 	case FNC:
-		free_thing(thing->function->thing);
+		/*free_thing(thing->function->thing);
 		struct variable *o, * v = thing->function->variables;
 		while (v)
 		{
@@ -72,7 +71,7 @@ void free_thing(struct thing * thing)
 			free(o->label);
 			free(o);
 		}
-		free(thing->function);
+		free(thing->function); */
 		break;
 	}
 	
@@ -309,9 +308,45 @@ struct thing * parse_string(char * str)
 	return thing;
 }
 
+void parse_hash(char * line, struct variable * variables)
+{
+	char * s;
+	int i;
+	
+	if (*(line+1) == '!') return;
+	
+	/* line is now just the first word. */
+	for (s = line; *s && !IS_SPACE(*s); s++);
+	*s = '\0';
+	
+	if (strcmp(line, "include") == 0)
+	{ /* include definitions from another file. */
+		struct thing * state;
+		char path[256];
+		int fd;
+		
+		for (s++; IS_SPACE(*s); s++);
+		for (i = 0; i < N_PATHS; i++)
+		{
+			sprintf(path, "%s/%s", library_paths[i], s);
+			if ((fd = open(path, O_RDONLY)) > 0) break;
+		}
+		if (fd < 0)
+		{
+			fprintf(stderr, "Could not find %s include file\n", s);
+			die("FAILED");
+		}
+		
+		state = malloc(sizeof(state));
+		state = parse_file(fd, state, variables);
+		
+		close(fd);
+	}
+}
+
 struct thing * parse_file(int fd, struct thing * state, struct variable * variables)
 {
-	int i;
+	int i, comment = 0;
 	ssize_t count = 1;
 	char *str, *c, tmp;
 	char buf[512];
@@ -319,29 +354,49 @@ struct thing * parse_file(int fd, struct thing * state, struct variable * variab
 
 	while (count)
 	{
-		str = buf;
+		c = str = buf;
 		i = 0;
-		do {
-			count = read(fd, str, sizeof(char));
+		while (1)
+		{
+			count = read(fd, c, sizeof(char));
 			if (count == 0) break;
 			if (count == -1) die("read error\n");
-			if (*str == '(') i++;
-			if (*str == ')') i--;
-			str++;
-		} while (!(*(str-1) == ')' && !i));
-		*str = '\0';
+						
+			if (comment)
+			{
+				if (*c == '\n') comment = 0;
+				str++;
+			}
+			
+			if (*c == ';')
+			{
+				 comment = 1;
+				 break;
+			}
+
+			if (*str == '#')
+			{	if (*c == '\n') break;
+
+			} else 
+			{
+				if (*c == '(') i++;
+				if (*c == ')') i--;
+				if (!i) { c++; break; }
+			}
+			c++;
+		}
+		*c = '\0';
 		
-		c = str;
-		str = buf;
 		while (*str && IS_SPACE(*str)) str++;
 		if (!*str) continue;
 		
-		free_thing(state);
-		parsed = parse_string(str);
-		state = eval_thing(parsed, variables);
-		
-		*c = tmp;
-		str = c;
+		if (*str == '#') parse_hash(++str, variables);
+		else
+		{
+			free_thing(state);
+			parsed = parse_string(str);
+			state = eval_thing(parsed, variables);
+		}
 	}
 	
 	return state;
@@ -349,6 +404,7 @@ struct thing * parse_file(int fd, struct thing * state, struct variable * variab
 
 int main(int argc, char *argv[])
 {
+	int i, fd = 0;
 	struct thing * state;
 	struct variable * variables;
 	state = malloc(sizeof(struct thing));
@@ -358,7 +414,13 @@ int main(int argc, char *argv[])
 	variables->label = "";
 	variables->next = NULL;
 	
-	state = parse_file(0, state, variables);
+	for (i = 1; i < argc; i++)
+	{
+		fd = open(argv[i], O_RDONLY);
+		if (fd < 0) die("ERROR opening file");
+		state = parse_file(fd, state, variables);
+		close(fd);
+	}
 		
 	print_thing(state);
 	printf("\n");
