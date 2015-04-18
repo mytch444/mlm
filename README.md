@@ -13,9 +13,12 @@ if the first character is '(' it will read to the corrosponding
 closing bracket and break it apart.
 
 ####char:
-first character is a single quote ('), currently there are no
-escape codes or unicode support. escape codes will happen. 
+first character is a single quote ('), supports most c escape codes.
 unicode might happen.
+
+####string:
+if first character is a double quote (") then the values between in and
+the next double quote and evaulated as char's and put into a list.
 
 ####int:
 if the string starts with '-' (and has a length greater than 1)
@@ -70,9 +73,15 @@ returns () if a is not the same type as b. takes any number of args.
 
     (car l)
 
+returns the head of the list.
+
     (cdr l)
 
-    (cons thing thing)
+returns the tail (everthing that isn't the head) of l.
+
+    (cons x l)
+
+makes a new list with x at the head and l (should be a list or nil) behind it.
 
     (def label thing)
 	

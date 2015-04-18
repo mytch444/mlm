@@ -1,0 +1,7 @@
+#!/usr/bin/mlm
+
+#include stdlib.l
+
+;(char? (car "hello"))
+
+(list? ( 1 2 3 ))

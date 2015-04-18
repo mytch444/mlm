@@ -1,8 +1,16 @@
+; basic useful variable names.
+
 (def else 1)
 (def t 1)
 (def f ())
 
+; type checks.
+
 (def nil? (\ a (is () a)))
+(def int? (\ a (is 1 a)))
+(def double? (\ a (is 1.0 a)))
+(def char? (\ a (is 'a' a)))
+(def list? (\ a (is (1) a)))
 
 (def abs (\ a (cond
 		((> 0 a) (- 0 a))
@@ -19,9 +27,6 @@
 		((< a b) t)
 		(else f))))
 
-(def twice
-	(\ a (* 2 a)))
-
 (def pow (\ a b
 		(cond 	((= b 0) 1)
 			((> b 0) (* a (pow a (- b 1)))))))
@@ -32,7 +37,7 @@
 	)))
 
 (def nth (\ i l
-	(cond 	((= i 0) (car l))
+	(cond 	((= i 1) (car l))
 		(else (nth (- i 1) (cdr l))))))
 
 (def concat (\ c l

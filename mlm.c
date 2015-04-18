@@ -5,8 +5,9 @@
 
 #include "mlm.h"
 #include "operators.c"
+#include "script_operators.c"
 
-#define N_FUNCTIONS 13
+#define N_FUNCTIONS 17
 struct operator operators[] = {
 	{ "+", &operator_add },
 	{ "-", &operator_sub },
@@ -21,6 +22,11 @@ struct operator operators[] = {
 	{ "cond", &operator_cond },
 	{ "def", &operator_define },
 	{ "\\", &operator_lambda },
+	
+	{ "exec", &operator_exec },
+	{ "read", &operator_read },
+	{ "print", &operator_print },
+	{ "error", &operator_error },
 };
 
 void die(char * mes)
@@ -55,8 +61,10 @@ void free_thing(struct thing * thing)
 	switch (thing->type)
 	{
 	case LST:
-		free_thing(thing->car);
-		free_thing(thing->cdr);
+		if (thing->car)
+			free_thing(thing->car);
+		if (thing->cdr)
+			free_thing(thing->cdr);
 		break;
 	case SYM:
 		free(thing->label);
@@ -227,18 +235,43 @@ void print_thing(struct thing * thing)
 	}
 }
 
-char * forward_section(char * str)
+int check_section_end(char c)
 {
-	int b = 0;
-	if (*str == '(')
+	static int b = 0, q = 0, qq = 0;
+	if (!c || (IS_SPACE(c) || c == ')' || c == ';')
+                  && b <= 0 && !q && !qq)
 	{
-		for (; *str && !(!b && *(str-1) == ')'); str++)
+		b = q = qq = 0;
+		return 1;
+	}
+
+	switch (c)
+	{
+	case '(': if (!q && !qq) b++; break;
+	case ')': if (!q && !qq) b--; break;
+	case '\'': if (!qq) q = !q; break;
+	case '\"': qq = !qq; break;
+	}
+	
+	return 0;
+}
+
+char parse_char(char * cc)
+{
+	if (*cc == '\\')
+	{
+		switch (*(++cc))
 		{
-			if (*str == '(') b++;
-			if (*str == ')') b--;
+		case 'n': return '\n';
+		case 'r': return '\r';
+		case '\'': return '\'';
+		case '\"': return '\"';
+		case '0': return '\0';
+		case 'v': return '\v';
+		case '\\': return '\\';
+		default: return 0;
 		}
-	} else for (; *str && *str != ')' && !IS_SPACE(*str); str++);
-	return str;
+	} else return *cc;
 }
 
 struct thing * parse_string(char * str)
@@ -248,13 +281,13 @@ struct thing * parse_string(char * str)
 	thing->type = NIL;
 	if (*str == '(')
 	{ /* parse list */
-		c = ++str;
 		t = thing;
+		c = ++str;
 		while (*c)
 		{
-			for (str = c; IS_SPACE(*str); str++);
+			for (str = c; IS_SPACE(*str); str++) c++;
 			if (*str == ')') break;
-			c = forward_section(str);
+			while (!check_section_end(*c)) c++;
 			tmp = *c;
 			*c = '\0';
 			t->cdr = malloc(sizeof(struct thing));
@@ -275,17 +308,17 @@ struct thing * parse_string(char * str)
 		thing->type = CHR;
 		for (c = ++str; *c && *c != '\''; c++);
 		*c = '\0';
-		thing->value = *str;
+		thing->value = (float) parse_char(str);
 		/* TODO; work with escape codes and unicode? */
 	} else if (*str == '\"')
 	{ /* parse string */
 		t = thing;
-		for (c = ++str; *c != '\"'; c++)
+		for (c = ++str; *c && *c != '\"'; c++)
 		{
 			t->type = LST;
 			t->car = malloc(sizeof(struct thing));
 			t->car->type = CHR;
-			t->car->value = *c;
+			t->car->value = (float) parse_char(c);
 			t->cdr = malloc(sizeof(struct thing));
 			t = t->cdr;
 		}
@@ -318,14 +351,14 @@ void parse_hash(char * line, struct variable * variables)
 	/* line is now just the first word. */
 	for (s = line; *s && !IS_SPACE(*s); s++);
 	*s = '\0';
+	/* and s the rest not including space */
+	for (s++; IS_SPACE(*s); s++);
 	
 	if (strcmp(line, "include") == 0)
 	{ /* include definitions from another file. */
 		struct thing * state;
 		char path[256];
-		int fd;
-		
-		for (s++; IS_SPACE(*s); s++);
+		int fd = -1;
 		for (i = 0; i < N_PATHS; i++)
 		{
 			sprintf(path, "%s/%s", library_paths[i], s);
@@ -351,52 +384,36 @@ struct thing * parse_file(int fd, struct thing * state, struct variable * variab
 	char *str, *c, tmp;
 	char buf[512];
 	struct thing * parsed;
-
+	
 	while (count)
 	{
 		c = str = buf;
-		i = 0;
-		while (1)
+		count = read(fd, c, sizeof(char));
+		if (IS_SPACE(*c)) continue;
+		else if (*c == ';' || *c == '#')
 		{
-			count = read(fd, c, sizeof(char));
-			if (count == 0) break;
-			if (count == -1) die("read error\n");
-						
-			if (comment)
-			{
-				if (*c == '\n') comment = 0;
-				str++;
-			}
-			
-			if (*c == ';')
-			{
-				 comment = 1;
-				 break;
-			}
-
+			while (count && *c != '\n') 
+				count = read(fd, ++c, sizeof(char));
+			*c = '\0';
 			if (*str == '#')
-			{	if (*c == '\n') break;
-
-			} else 
-			{
-				if (*c == '(') i++;
-				if (*c == ')') i--;
-				if (!i) { c++; break; }
-			}
-			c++;
+				parse_hash(++str, variables);
+			continue;
 		}
+		
+		while (count && !check_section_end(*c))
+			count = read(fd, ++c, sizeof(char));
 		*c = '\0';
 		
 		while (*str && IS_SPACE(*str)) str++;
 		if (!*str) continue;
 		
-		if (*str == '#') parse_hash(++str, variables);
-		else
-		{
-			free_thing(state);
-			parsed = parse_string(str);
-			state = eval_thing(parsed, variables);
-		}
+		free_thing(state);
+		parsed = parse_string(str);
+		state = eval_thing(parsed, variables);
+		printf("eval: ");
+		print_thing(state);
+		printf("\n");
+		free_thing(parsed);
 	}
 	
 	return state;
@@ -404,7 +421,7 @@ struct thing * parse_file(int fd, struct thing * state, struct variable * variab
 
 int main(int argc, char *argv[])
 {
-	int i, fd = 0;
+	int i, fd = 0, print = 1;
 	struct thing * state;
 	struct variable * variables;
 	state = malloc(sizeof(struct thing));
@@ -416,12 +433,16 @@ int main(int argc, char *argv[])
 	
 	for (i = 1; i < argc; i++)
 	{
-		fd = open(argv[i], O_RDONLY);
-		if (fd < 0) die("ERROR opening file");
-		state = parse_file(fd, state, variables);
-		close(fd);
+		if (strcmp(argv[i], "-") == 0) break;
+		else if (strcmp(argv[i], "-c") == 0) print = 0;
+		else if (!fd) fd = open(argv[i], O_RDONLY);
 	}
-		
+
+	if (fd < 0) die("ERROR opening file");
+	state = parse_file(fd, state, variables);
+	close(fd);
+	
+	if (!print) return EXIT_SUCCESS;
 	print_thing(state);
 	printf("\n");
 	return EXIT_SUCCESS;
