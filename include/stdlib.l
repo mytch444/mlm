@@ -78,3 +78,10 @@
 		(else (cons
 			(last o)
 			(reverse (cut-last o)))))))
+
+(def build-h (\ i n f 
+	(cond	((= i n) ())
+		(else (cons (f i) (build-h (+ i 1) n f))))))
+
+(def build (\ n f (build-h 1 n f)))
+
