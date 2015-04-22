@@ -4,22 +4,17 @@
 int name(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols) \
 { \
 	struct mlm_thing * a; \
-	printf("doing shit\n"); \
 	while (args->type == LST) \
 	{ \
-		printf("calling eval\n"); \
 		a = eval_thing(args->car, symbols); \
 		if (r->type == NIL) \
 		{ \
-			printf("setting type\n"); \
 			r->type = a->type;  \
 			if (r->type == FLT) r->point = a->point; \
 			else r->value = a->value; \
 		} else if (a->type == FLT) r->point op a->point; \
 		else r->value op a->value; \
-		printf("freeing thing\n"); \
 		free_thing(a); \
-		printf("moving on\n"); \
 		args = args->cdr; \
 	} \
 	return 0; \

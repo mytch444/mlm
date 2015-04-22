@@ -120,10 +120,8 @@ struct mlm_thing * eval_thing(struct mlm_thing * thing, struct mlm_symbol * symb
 {
 	struct mlm_thing * t = NULL, * r = malloc(sizeof(struct mlm_thing));
 	r->type = NIL;
-	printf("eval\n");
 	if (thing->type == LST)
 	{
-		printf("list\n");
 		t = malloc(sizeof(struct mlm_thing));
 		copy_thing(t, thing);
 		do
@@ -134,16 +132,10 @@ struct mlm_thing * eval_thing(struct mlm_thing * thing, struct mlm_symbol * symb
 		} while (t->car->type == LST
 		     && (t->car->car->type == SYM || t->car->car->type == FNC));
 		
-		printf("evaled car to: ");
-		print_thing(t->car);
-		printf("\n");
-		
 		if (t->car->type != FNC) return t;
 		
 		int e = 0;
 		thing = t;
-		
-		printf("have a function to fuck with\n");
 		
 		if (!t->car->function->thing)
 			e = t->car->function->func(r, t->cdr, symbols);
@@ -167,8 +159,6 @@ struct mlm_thing * eval_thing(struct mlm_thing * thing, struct mlm_symbol * symb
 			}
 		}
 		
-		printf("fucked with\n");
-		
 		if (e)
 		{
 			fprintf(stderr, "Error while evaluating: ");
@@ -177,12 +167,8 @@ struct mlm_thing * eval_thing(struct mlm_thing * thing, struct mlm_symbol * symb
 			r->type = NIL;
 		}
 		
-		printf("freeing thing\n");
 		free_thing(thing);
 		
-		printf("result is: ");
-		print_thing(r);
-		printf("--\n");
 		return r;
 	} else if (thing->type == SYM)
 		t = find_symbol(symbols, thing->label);
