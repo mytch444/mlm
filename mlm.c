@@ -1,17 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
 
 #include "mlm.h"
 #include "operators.c"
 #include "file_operators.c"
-
-void die(char * mes)
-{
-	fprintf(stderr, "%s\n", mes);
-	exit(EXIT_FAILURE);
-}
 
 int thing_equivalent(struct mlm_thing * a, struct mlm_thing * b)
 {
@@ -43,10 +38,8 @@ void free_thing(struct mlm_thing * thing)
 	switch (thing->type)
 	{
 	case LST:
-		if (thing->car)
-			free_thing(thing->car);
-		if (thing->cdr)
-			free_thing(thing->cdr);
+		if (thing->car) free_thing(thing->car);
+		if (thing->cdr) free_thing(thing->cdr);
 		break;
 	case SYM:
 		free(thing->label);
@@ -59,7 +52,6 @@ void free_thing(struct mlm_thing * thing)
 		{
 			o = v;
 			v = v->next;
-			if (o->name) free(o->name);
 			if (o->thing) free_thing(o->thing);
 			free(o);
 		}
@@ -98,17 +90,16 @@ void copy_thing(struct mlm_thing * n, struct mlm_thing * o)
 			n->function->func = o->function->func;
 			n->function->thing = NULL;
 		}
+		
 		struct mlm_symbol * s, * t;
 		s = n->function->symbols = malloc(sizeof(struct mlm_symbol));
-		s->name = NULL; s->thing = NULL;
-		s->next = NULL;
+		s->name = NULL; s->thing = NULL; s->next = NULL;
 
 		for (t = o->function->symbols->next; t; t = t->next)
 		{
 			s->next = malloc(sizeof(struct mlm_symbol));
 			s = s->next;
-			s->name = malloc(sizeof(char) * (strlen(t->name) + 1));
-			strcpy(s->name, t->name);
+			s->name = t->name;
 			s->thing = NULL;
 			s->next = NULL;
 		}
@@ -127,66 +118,78 @@ struct mlm_thing * find_symbol(struct mlm_symbol * s, char * name)
 
 struct mlm_thing * eval_thing(struct mlm_thing * thing, struct mlm_symbol * symbols)
 {
-	int i;
-	struct mlm_symbol * s;
-	struct mlm_thing * t = thing, * r = malloc(sizeof(struct mlm_thing));
+	struct mlm_thing * t = NULL, * r = malloc(sizeof(struct mlm_thing));
 	r->type = NIL;
+	printf("eval\n");
 	if (thing->type == LST)
 	{
+		printf("list\n");
 		t = malloc(sizeof(struct mlm_thing));
 		copy_thing(t, thing);
 		do
 		{
 			thing = t->car;
-			t->car = eval_thing(t->car, symbols);
+			t->car = eval_thing(thing, symbols);
 			free_thing(thing);
-		} while (t->car->type == LST && t->car->car->type == SYM);
-
-		if (t->type != LST || t->car->type != FNC) return t;
+		} while (t->car->type == LST
+		     && (t->car->car->type == SYM || t->car->car->type == FNC));
+		
+		printf("evaled car to: ");
+		print_thing(t->car);
+		printf("\n");
+		
+		if (t->car->type != FNC) return t;
+		
+		int e = 0;
+		thing = t;
+		
+		printf("have a function to fuck with\n");
+		
 		if (!t->car->function->thing)
+			e = t->car->function->func(r, t->cdr, symbols);
+		else
 		{
-			t->car->function->func(r, t->cdr, symbols);
-			free_thing(t);
-			return r;
-		} else
-		{
-			thing = t;
-			for (s = t->car->function->symbols; s && s->next; s = s->next)
+			struct mlm_symbol * s;
+			for (s = t->car->function->symbols; !e && s && s->next; s = s->next)
 			{
 				if (t->cdr->type == LST)
-					s->next->thing = eval_thing((t = t->cdr)->car, symbols);
-				else
-					s->next->thing = eval_thing(t->car, symbols);
+					s->next->thing =
+						eval_thing((t = t->cdr)->car, symbols);
+				else e = 1;
 			}
-			s->next = symbols->next;
-			
-			t = eval_thing(thing->car->function->thing,
-			               thing->car->function->symbols);
-			s->next = NULL;
-			free_thing(thing);
-			return t;
+			if (!e)
+			{
+				s->next = symbols->next;
+				free_thing(r);
+				r = eval_thing(thing->car->function->thing,
+			                       thing->car->function->symbols);
+				s->next = NULL;
+			}
 		}
+		
+		printf("fucked with\n");
+		
+		if (e)
+		{
+			fprintf(stderr, "Error while evaluating: ");
+			print_thing(thing);
+			fprintf(stderr, "\n");
+			r->type = NIL;
+		}
+		
+		printf("freeing thing\n");
+		free_thing(thing);
+		
+		printf("result is: ");
+		print_thing(r);
+		printf("--\n");
+		return r;
 	} else if (thing->type == SYM)
 		t = find_symbol(symbols, thing->label);
-
+	
 	if (t) copy_thing(r, t);
 	else copy_thing(r, thing);
 	return r;
-}
-
-char * char_list_to_string(struct mlm_thing * thing)
-{
-	struct mlm_thing * t;
-	int l = 1;
-	for (t = thing; t->type == LST; t = t->cdr) l++;
-	char * str = malloc(sizeof(char) * l);
-	
-	l = 0;
-	for (t = thing; t->type == LST; t = t->cdr)
-		str[l++] = (char) t->car->value;
-	str[l] = '\0';	
-	
-	return str;
 }
 
 void print_thing(struct mlm_thing * thing)
@@ -215,16 +218,17 @@ void print_thing(struct mlm_thing * thing)
 		printf("%s", thing->label);
 		break;
 	case FNC:
-		printf("lambda");
+		printf("func");
 		break;
+	default: printf("what is this?\n");
 	}
 }
 
 int check_section_end(char c)
 {
 	static int b = 0, q = 0, qq = 0;
-	if (!c || (IS_SPACE(c) || c == ')' || c == ';')
-                  && b <= 0 && !q && !qq)
+	if (!c || ((IS_SPACE(c) || c == ')' || c == ';')
+                    && b <= 0 && !q && !qq))
 	{
 		b = q = qq = 0;
 		return 1;
@@ -259,9 +263,24 @@ char parse_char(char * cc)
 	} else return *cc;
 }
 
+void parse_char_list(struct mlm_thing * t, char * str)
+{
+	char *c;
+	for (c = str; *c && *c != '\"'; c++)
+	{
+		t->type = LST;
+		t->car = malloc(sizeof(struct mlm_thing));
+		t->car->type = CHR;
+		t->car->value = parse_char(c);
+		t->cdr = malloc(sizeof(struct mlm_thing));
+		t = t->cdr;
+	}
+	t->type = NIL;
+}
+
 struct mlm_thing * parse_string(char * str)
 {
-	char *c, tmp;
+	char *c;
 	struct mlm_thing * t, * thing;
 	t = thing = malloc(sizeof(struct mlm_thing));
 	thing->type = NIL;
@@ -272,8 +291,6 @@ struct mlm_thing * parse_string(char * str)
 		while (*c)
 		{
 			for (str = c; *str && IS_SPACE(*str); str++) c++;
-			if (*str == ')') break;
-			if (!*str) die("UNFINISHED LIST!");
 			while (!check_section_end(*c)) c++;
 			*(c++) = '\0';
 			t->type = LST;
@@ -289,22 +306,13 @@ struct mlm_thing * parse_string(char * str)
 		t->type = CHR;
 		for (c = ++str; *c && *c != '\''; c++);
 		*c = '\0';
-		t->value = (float) parse_char(str);
+		t->value = parse_char(str);
 	} else if (*str == '\"')
 	{ /* parse string */
-		for (c = ++str; *c && *c != '\"'; c++)
-		{
-			t->type = LST;
-			t->car = malloc(sizeof(struct mlm_thing));
-			t->car->type = CHR;
-			t->car->value = (float) parse_char(c);
-			t->cdr = malloc(sizeof(struct mlm_thing));
-			t = t->cdr;
-		}
-		t->type = NIL;
-	} else if (*str >= '0' && *str <= '9'
-		|| *str == '.'
-		|| (*str == '-' && strlen(str) > 1))
+		parse_char_list(thing, ++str);
+	} else if ((*str >= '0' && *str <= '9')
+	            || *str == '.'
+	            || (*str == '-' && strlen(str) > 1))
 	{ /* parse number */
 		t->type = INT;
 		for (c = str; *c && t->type == INT; c++)
@@ -337,7 +345,7 @@ int include_file(char * name, struct mlm_path * paths, struct mlm_symbol * symbo
 	
 	if (fd > 0)
 	{
-		state = parse_file(fd, paths, symbols);
+		state = parse_file(fd, 0, paths, symbols);
 		free_thing(state);
 		close(fd);
 		return 0;
@@ -347,24 +355,22 @@ int include_file(char * name, struct mlm_path * paths, struct mlm_symbol * symbo
 	return 1;
 }
 
-struct mlm_thing * parse_file(int fd, struct mlm_path * paths, struct mlm_symbol * symbols)
+struct mlm_thing * parse_file(int fd, int inter, struct mlm_path * paths, struct mlm_symbol * symbols)
 {
-	int i, comment = 0;
 	ssize_t count = 1;
-	char *str, *c, tmp;
-	char buf[512];
+	char *str, *c, buf[512];
 	struct mlm_thing * parsed, * state = NULL;
 	
 	while (count)
 	{
-		if (!fd)
+		if (inter)
 		{
 			printf("> "); fflush(stdout);
 		}
 		
 		c = str = buf;
 		count = read(fd, c, sizeof(char));
-		if (IS_SPACE(*c)) continue;
+		if (!count || IS_SPACE(*c)) continue;
 		else if (*c == ';' || *c == '#')
 		{
 			while (count && *c != '\n') 
@@ -377,56 +383,79 @@ struct mlm_thing * parse_file(int fd, struct mlm_path * paths, struct mlm_symbol
 		
 		while (count && !check_section_end(*c))
 			count = read(fd, ++c, sizeof(char));
-		*c = '\0';
 		
-		while (*str && IS_SPACE(*str)) str++;
-		if (!*str) continue;
+		if (!count && check_section_end(*c))
+		{
+			fprintf(stderr, "Reached end of input without ending section!\n");
+			return NULL;
+		}
+		
+		*c = '\0';
 		
 		if (state)
 			free_thing(state);
 		parsed = parse_string(str);
 		state = eval_thing(parsed, symbols);
-		if (!fd)
+		free_thing(parsed);
+		
+		if (inter)
 		{
 			print_thing(state);
 			printf("\n");
 		}
-		free_thing(parsed);
 	}
 	
 	return state;
 }
 
-#define ADD_NEW_OPERATOR(s, L, F) \
-                        s->next = malloc(sizeof(struct mlm_symbol)); \
-                        s = s->next; \
-                        s->name = L; \
-                        s->thing = F; \
-                        s->next = NULL;
-
-void add_default_symbols(struct mlm_symbol * s)
+void add_operator_next(struct mlm_symbol * s,
+                  char * name,
+                  int (*func)(struct mlm_thing *,
+                              struct mlm_thing *,
+                              struct mlm_symbol *))
 {
-	for (s; s && s->next; s = s->next);
-	ADD_NEW_OPERATOR(s, "+", &operator_add_thing);
-	ADD_NEW_OPERATOR(s, "-", &operator_sub_thing);
-	ADD_NEW_OPERATOR(s, "*", &operator_mul_thing);
-	ADD_NEW_OPERATOR(s, "/", &operator_div_thing);
-	ADD_NEW_OPERATOR(s, "|", &operator_or_thing);
-	ADD_NEW_OPERATOR(s, "&", &operator_and_thing);
-	ADD_NEW_OPERATOR(s, "^", &operator_xor_thing);
-	ADD_NEW_OPERATOR(s, "=", &operator_equal_thing);
-	ADD_NEW_OPERATOR(s, ">", &operator_greater_thing);
-	ADD_NEW_OPERATOR(s, "is", &operator_is_thing);
-	ADD_NEW_OPERATOR(s, "car", &operator_car_thing);
-	ADD_NEW_OPERATOR(s, "cdr", &operator_cdr_thing);
-	ADD_NEW_OPERATOR(s, "cons", &operator_cons_thing);
-	ADD_NEW_OPERATOR(s, "cond", &operator_cond_thing);
-	ADD_NEW_OPERATOR(s, "def", &operator_def_thing);
-	ADD_NEW_OPERATOR(s, "\\", &operator_lambda_thing);
-	ADD_NEW_OPERATOR(s, "exec", &operator_exec_thing);
-	ADD_NEW_OPERATOR(s, "open", &operator_open_thing);
-	ADD_NEW_OPERATOR(s, "print", &operator_print_thing);
-	ADD_NEW_OPERATOR(s, "read", &operator_read_thing);
+	for (; s && s->next; s = s->next);
+	s->next = malloc(sizeof(struct mlm_symbol));
+	s = s->next;
+	s->name = name;
+	s->next = NULL;
+	s->thing = malloc(sizeof(struct mlm_thing));
+	s->thing->type = FNC;
+	s->thing->function = malloc(sizeof(struct mlm_function));
+	s->thing->function->symbols = malloc(sizeof(struct mlm_symbol));
+	s->thing->function->symbols->name = NULL;
+	s->thing->function->symbols->next = NULL;
+	s->thing->function->thing = NULL;
+	s->thing->function->func = func;
+}
+
+struct mlm_symbol * make_default_symbols()
+{
+	struct mlm_symbol * s, * symbols;
+	s = symbols = malloc(sizeof(struct mlm_symbol));
+	add_operator_next(s, "+", &operator_add);
+	add_operator_next(s, "-", &operator_sub);
+	add_operator_next(s, "*", &operator_mul);
+	add_operator_next(s, "/", &operator_div);
+	add_operator_next(s, "|", &operator_or);
+	add_operator_next(s, "&", &operator_and);
+	add_operator_next(s, "^", &operator_xor);
+	add_operator_next(s, "=", &operator_equal);
+	add_operator_next(s, ">", &operator_greater);
+	add_operator_next(s, "is", &operator_is);
+	add_operator_next(s, "car", &operator_car);
+	add_operator_next(s, "cdr", &operator_cdr);
+	add_operator_next(s, "cons", &operator_cons);
+	add_operator_next(s, "cond", &operator_cond);
+	add_operator_next(s, "def", &operator_def);
+	add_operator_next(s, "\\", &operator_lambda);
+	add_operator_next(s, "exec", &operator_exec);
+	add_operator_next(s, "write", &operator_write);
+	add_operator_next(s, "read", &operator_read);
+	add_operator_next(s, "open", &operator_open);
+	
+	for (s = symbols->next; s; s = s->next);
+	return symbols;
 }
 
 int main(int argc, char *argv[])
@@ -443,24 +472,27 @@ int main(int argc, char *argv[])
 	p->path = ".";
 	p->next = NULL;
 	
-	symbols = malloc(sizeof(struct mlm_symbol));
-	symbols->name = NULL;
-	symbols->next = NULL;
-	
-	add_default_symbols(symbols);
+	symbols = make_default_symbols();
 	
 	for (i = 1; i < argc; i++)
 	{
 		if (*argv[i] == '-')
 		{
-			if (*(++argv[i]) == 'L')
+			++argv[i];
+			if (*argv[i] == 'L')
 			{
 				printf("adding library path\n");
 				p->next = malloc(sizeof(struct mlm_path));
 				p = p->next;
 				p->path = ++argv[i];
 				p->next = NULL;
-			} else break;
+			} else if (*argv[i] == 'l')
+			{
+				include_file(++argv[i], paths, symbols);
+			} else
+			{
+				fprintf(stderr, "Bad option -%s\n", argv[i]);
+			}
 		} else if (!fd) fd = open(argv[i], O_RDONLY);
 	}
 
@@ -469,7 +501,7 @@ int main(int argc, char *argv[])
 	p->next->next = NULL;
 
 	if (fd < 0) fd = 0;
-	state = parse_file(fd, paths, symbols);
+	state = parse_file(fd, 1, paths, symbols);
 	close(fd);
 	
 	if (fd > 0)

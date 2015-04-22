@@ -1,39 +1,57 @@
-void operator_exec(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
+int operator_exec(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
 {
-
+	return 0;
 }
 
-MLM_NEW_FUNCTION_THING(operator_exec, operator_exec_function, operator_exec_thing)
-
-void operator_read(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
+int operator_read(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
 {
-
+	r->type = CHR;
+	read(find_symbol(symbols, "stdin")->value, &r->value, 1);
+	return 0;
 }
 
-MLM_NEW_FUNCTION_THING(operator_read, operator_read_function, operator_read_thing)
-
-void operator_print(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
+int operator_write(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
 {
-	if (args->type != LST || args->cdr->type != LST) die("Print has wrong arguments!");
-	struct mlm_thing * f = eval_thing(args->car, symbols);
-	struct mlm_thing * t = eval_thing(args->cdr->car, symbols);
+	if (args->type != LST) err(1, "write bad arguments.");
+	struct mlm_thing * t = eval_thing(args->car, symbols);
 	
-	char c = (int) t->value;
-	write((int) f->value, &c, 1);	
+	char c = t->value;
+	write(find_symbol(symbols, "stdout")->value, &c, 1);	
+	return 0;
+}
+
+int operator_open(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
+{
+	if (args->type != LST || args->cdr->type != LST)
+		err(1, "open bad arguments.");
+	struct mlm_thing * f, * o, * c;
+	char path[512];
+	int i;
+	
+	f = eval_thing(args->car, symbols);
+	o = eval_thing(args->cdr->car, symbols);
+	
+	for (i = 0, c = f; c->type == LST; c = c->cdr)
+		path[i++] = c->car->value;
+	path[i] = '\0';
+	r->type = INT;
+	r->value = open(path, o->value);
+	
+	free_thing(f);
+	free_thing(o);
+	return 0;
+}
+
+int operator_stdin(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
+{
 	r->type = INT;
 	r->value = 0;
+	return 0;
 }
 
-MLM_NEW_FUNCTION_THING(operator_print, operator_print_function, operator_print_thing)
-
-void operator_open(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
+int operator_stdout(struct mlm_thing * r, struct mlm_thing * args, struct mlm_symbol * symbols)
 {
-	if (args->type != LST) die("Open is wrong arguments!");
-	struct mlm_thing * f = eval_thing(args->car, symbols);
-	struct mlm_thing * o = eval_thing(args->cdr->car, symbols);
-	char * file = char_list_to_string(f);
 	r->type = INT;
-	r->value = open(file, (int) f->value);
+	r->value = 1;
+	return 0;
 }
-
-MLM_NEW_FUNCTION_THING(operator_open, operator_open_function, operator_open_thing)
