@@ -69,7 +69,7 @@ with floats as well as lists and functions.
     (^ n n)
 
 Just a random gap, don't freak out too much. Okay, it's probably safe
-to freak out a little. I'm changing to having the definitions below.
+to freak out a little. I'm changing to having the definitions below
 the examples.
 
     (= a b)
@@ -85,7 +85,9 @@ Similar to equal. Behavior with functions is undefined.
 	
 Returns 1 if a and b have the same type.
 
-    (cond (ifnotnil returnthis) (elseifnotnil returnthis))
+    (cond
+    	(ifnotnil returnthis)
+    	(elseifnotnil returnthis))
 
 Fairly self explanatory. You can have as many clauses as you wish.
 
@@ -109,75 +111,30 @@ cdr.
 	
 Adds/sets label to thing in list of available variables.
     
-    (\ a b c (+ a b c))
+    (\ (a b c) (+ a b c))
 
-Creates a new function. a b and c are arguments that can be 
-accessed from inside the function. You can have as many
-arguments named as you wish. The last argument you give 
-lambda is the function.
+Creates a new function. a b and c are arguments that can be accessed 
+from inside the function. It returns the value of the last statement.
+So yes, you can have more than one statement like the following
 
-These are also built in functions but i felt they should be 
-seperate.
+    (\ (a b)
+    	(exec "/bin/echo" (to-string a))
+    	(exec "/bin/echo" (to-string b))
+    	(+ a b)))
+
+Which (if you created to-string) will echo a, then echo b, then return a + b.
 
     (exec path arg1 arg2)
 
 Forks and executes path with arguments arg1 arg2...
 
-    (read)
-
-    (write char)
-
-Read/write to files descriptors defined by symbols names 
-stdin/stdout respectively. Because of my stupidity you will
-have to define stdin/out before you can use these.
-
-    (open path options)
-
-Returns a file descripter for file at path opened with 
-options (man 2 open).
-
-##Includes
-
-To include another file do.
-
-	#stdlib.l
-
-This will cause the interpreter to look through it's library
-path for this file. The library path by default is "." and 
-"/usr/share/mlm" (unless you change that at compile time). You 
-can add other paths by -Lpath/to/files when you run mlm. These 
-will be searched after "." but before the default library path.
-
-######Shebangs
-
-	#!/usr/bin/mlm
-
-Are ignored so the above is fine to have. so yes. you can do 
-that then exectute the file like a normal script.
-
 ##Notes
 
-Anything between a semicolor and end of line will be ignored.
-
-It is incredibly lazy. it will not evaluate something unless it
-absolutely has too. this includes when printing. so you will 
-probably get back unprocessed lists.
+Anything between a hash and end of line will be ignored.
 
 You can override all default functions with def.
 
-the state is the return value of the last block.
+The state is the return value of the last block.
 on exit state is printed.
 
     "abc" -> ('a' ('b' ('c' ())))
-
-#mlm
-
-##Options
-
-	-Lpath
-
-Adds path to library paths.
-
-	-lname.l
-
-Includes file name.l from library paths.

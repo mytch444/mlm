@@ -1,6 +1,6 @@
 BINDIR=/usr/bin
 
-mlm: mlm.c mlm.h file_operators.c operators.c
+mlm: mlm.c mlm.h operators.c
 	gcc -Wall -o mlm mlm.c
 
 .PHONY: install
